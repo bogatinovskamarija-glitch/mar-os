@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home as HomeIcon, CheckSquare, Target, WalletCards, Timer, BookOpen } from "lucide-react";
+import { Home as HomeIcon, CheckSquare, Target, WalletCards, Timer, BookOpen, LogOut } from "lucide-react";
 import { C, money, num } from "./theme";
 import { Label, Fig, Plot } from "./kit";
 import Backdrop from "./components/Backdrop";
 import Home from "./screens/Home";
+import Login from "./screens/Login";
 import { Habits, Goals, Focus, Journal } from "./screens/PersonalSheets";
 import Morning from "./screens/Morning";
 import Month from "./screens/Month";
@@ -15,6 +16,8 @@ import { meta } from "./data";
 import { useHabits } from "./hooks/useHabits";
 import { useFocus } from "./hooks/useFocus";
 import { useFinance } from "./hooks/useFinance";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { supabase } from "./lib/supabase";
 
 const PRIMARY = [
   { id: "home", no: "P-00", label: "Home", sub: "The daily glance", icon: HomeIcon },
@@ -33,7 +36,8 @@ const FINANCE = [
 ];
 const FINANCE_BODY = { morning: Morning, month: Month, recurring: Recurring, split: Split, drift: Drift };
 
-export default function App() {
+function Dashboard() {
+  const { session } = useAuth();
   const [page, setPage] = useState("home");
   const [finance, setFinance] = useState("morning");
 
@@ -61,9 +65,22 @@ export default function App() {
             <p className="text-[12px] font-bold uppercase tracking-[0.26em]" style={{ color: C.dim }}>
               {meta.owner} · Personal operating system
             </p>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.faint }}>
-              {todayStr}
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.18em]" style={{ color: C.faint }}>
+                {todayStr}
+              </p>
+              {session && (
+                <button
+                  type="button"
+                  title="Sign out"
+                  onClick={() => supabase.auth.signOut()}
+                  className="cursor-pointer opacity-40 hover:opacity-80 transition-opacity"
+                  style={{ color: C.faint }}
+                >
+                  <LogOut size={14} />
+                </button>
+              )}
+            </div>
           </div>
           <div className="mt-5 flex flex-wrap items-end justify-between gap-7">
             <div>
@@ -177,4 +194,30 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppGate />
+    </AuthProvider>
+  );
+}
+
+function AppGate() {
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center font-[Montserrat]" style={{ background: "#1A2118" }}>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&display=swap" />
+        <span className="text-[13px] font-bold uppercase tracking-[0.2em]" style={{ color: "#5A7058" }}>
+          Loading…
+        </span>
+      </div>
+    );
+  }
+
+  if (!session) return <Login />;
+  return <Dashboard />;
 }

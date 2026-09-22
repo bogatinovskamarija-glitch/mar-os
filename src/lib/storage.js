@@ -1,17 +1,28 @@
+import { supabase, getUid } from "./supabase";
+
 const safe = (fn, fallback) => {
   try { return fn(); } catch { return fallback; }
 };
 
+// Fire-and-forget Supabase upsert — never throws, never blocks the UI
+function sb(table, row, conflict) {
+  const uid = getUid();
+  if (!uid) return;
+  supabase.from(table)
+    .upsert({ user_id: uid, ...row }, { onConflict: conflict ?? "user_id" })
+    .then(() => {});
+}
+
 export const todayKey = () => new Date().toISOString().slice(0, 10);
 
-// ── Habits ──────────────────────────────────────────────────────────────────
-// Shape: { [habitName]: 0 | 1 }  stored at key "habits:{YYYY-MM-DD}"
+// ── Habits ───────────────────────────────────────────────────────────────────
 export const habitsStore = {
   get(date) {
     return safe(() => JSON.parse(localStorage.getItem(`habits:${date}`)), null);
   },
   set(date, data) {
     safe(() => localStorage.setItem(`habits:${date}`, JSON.stringify(data)));
+    sb("mar_os_habit_entries", { date, data }, "user_id,date");
   },
   streak(numHabits) {
     let count = 0;
@@ -29,7 +40,6 @@ export const habitsStore = {
     }
     return count;
   },
-  // Returns all stored entries, optionally filtered to a YYYY or YYYY-MM prefix
   allEntries(prefix) {
     return safe(() => {
       return Object.keys(localStorage)
@@ -41,8 +51,6 @@ export const habitsStore = {
   },
 };
 
-// Habits config: which habits are active vs retired
-// Shape: { active: string[], retired: string[] }
 export const habitsConfigStore = {
   get(defaultNames) {
     const fallback = { active: defaultNames ?? [], retired: [] };
@@ -54,41 +62,57 @@ export const habitsConfigStore = {
   },
   set(config) {
     safe(() => localStorage.setItem("habits:config", JSON.stringify(config)));
+    sb("mar_os_habits_config", { active: config.active, retired: config.retired });
   },
 };
 
 // ── Focus ────────────────────────────────────────────────────────────────────
-// Shape: number (minutes) stored at "focus:{YYYY-MM-DD}"
 export const focusStore = {
   get(date) {
     return safe(() => parseInt(localStorage.getItem(`focus:${date}`) ?? "0"), 0);
   },
   add(date, minutes) {
     const curr = focusStore.get(date);
-    safe(() => localStorage.setItem(`focus:${date}`, String(curr + minutes)));
+    const next = curr + minutes;
+    safe(() => localStorage.setItem(`focus:${date}`, String(next)));
+    sb("mar_os_focus", { date, minutes: next }, "user_id,date");
   },
 };
 
-// Session log: array of { date, target, done, mins, result }
 export const sessionsStore = {
   get() {
     return safe(() => JSON.parse(localStorage.getItem("focus:sessions") ?? "[]"), []);
   },
   push(session) {
+    const dateLabel = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const entry = { ...session, date: dateLabel };
     const all = sessionsStore.get();
-    all.unshift({ ...session, date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) });
-    safe(() => localStorage.setItem("focus:sessions", JSON.stringify(all.slice(0, 50))));
+    all.unshift(entry);
+    const trimmed = all.slice(0, 50);
+    safe(() => localStorage.setItem("focus:sessions", JSON.stringify(trimmed)));
+    // Write to Supabase (INSERT only — sessions are append-only)
+    const uid = getUid();
+    if (uid) {
+      supabase.from("mar_os_focus_sessions")
+        .insert({ user_id: uid, date_label: dateLabel, target: session.target, done: session.done, mins: session.mins, result: session.result })
+        .then(() => {});
+    }
   },
 };
 
 // ── Journal ──────────────────────────────────────────────────────────────────
-// Shape: { text, mood, words, saved } stored at "journal:{YYYY-MM-DD}"
 export const journalStore = {
   get(date) {
     return safe(() => JSON.parse(localStorage.getItem(`journal:${date}`)), null);
   },
   set(date, data) {
     safe(() => localStorage.setItem(`journal:${date}`, JSON.stringify(data)));
+    sb("mar_os_journal_entries", {
+      date,
+      text: data.text ?? null,
+      mood: data.mood ?? null,
+      saved_at: data.saved ?? null,
+    }, "user_id,date");
   },
   listDates() {
     return safe(() => {

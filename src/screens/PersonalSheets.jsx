@@ -4,6 +4,7 @@ import { C, num } from "../theme";
 import { Label, Fig, Panel, Chip, Btn } from "../kit";
 import { focusPresets, journalMoods, focusIntention, journalPromptCategories } from "../data";
 import { habitsStore } from "../lib/storage";
+import { supabase, getUid } from "../lib/supabase";
 import { useHabits } from "../hooks/useHabits";
 import { useGoals } from "../hooks/useGoals";
 import { usePriorities } from "../hooks/usePriorities";
@@ -423,6 +424,12 @@ function PlaylistsPanel() {
     const updated = items.map((p, idx) => idx === i ? { ...p, url: draft.trim() || "#" } : p);
     setItems(updated);
     try { localStorage.setItem(PLAYLIST_STORAGE_KEY, JSON.stringify(updated)); } catch {}
+    const uid = getUid();
+    if (uid) {
+      supabase.from("mar_os_settings")
+        .upsert({ user_id: uid, key: "playlists", value: updated }, { onConflict: "user_id,key" })
+        .then(() => {});
+    }
     setEditing(null);
   };
 
