@@ -12,6 +12,210 @@ import { useJournal } from "../hooks/useJournal";
 
 // ── Habits ───────────────────────────────────────────────────────────────────
 
+function openYearPDF(activeNames, allNames, year) {
+  const entries = habitsStore.allEntries(year);
+  const dataMap = {};
+  entries.forEach(({ date, data }) => { dataMap[date] = data ?? {}; });
+
+  // All dates in the year
+  const yearDates = [];
+  for (let d = new Date(`${year}-01-01T00:00:00`); d.getFullYear() === parseInt(year); d.setDate(d.getDate() + 1)) {
+    yearDates.push(d.toISOString().slice(0, 10));
+  }
+
+  const totalDays = entries.length;
+  const completeDays = entries.filter(({ data }) =>
+    allNames.length > 0 && allNames.every((n) => data?.[n])
+  ).length;
+  const avgPct = totalDays
+    ? Math.round(entries.reduce((s, { data }) => {
+        const done = allNames.filter((n) => data?.[n]).length;
+        return s + (allNames.length ? done / allNames.length : 0);
+      }, 0) / totalDays * 100)
+    : 0;
+
+  // GitHub-style grid: weeks as columns, 0=Sun … 6=Sat as rows
+  const firstDay = new Date(`${year}-01-01T00:00:00`);
+  const startPad = firstDay.getDay(); // 0=Sun, pad empty cells at start
+  const gridCells = Array(startPad).fill(null).concat(yearDates);
+  while (gridCells.length % 7 !== 0) gridCells.push(null);
+  const weeks = [];
+  for (let i = 0; i < gridCells.length; i += 7) weeks.push(gridCells.slice(i, i + 7));
+
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const cellColor = (date) => {
+    if (!date || !dataMap[date]) return "#eeeeee";
+    const done = allNames.filter((n) => dataMap[date]?.[n]).length;
+    const ratio = allNames.length ? done / allNames.length : 0;
+    if (ratio === 0) return "#eeeeee";
+    if (ratio <= 0.25) return "#c8e6c1";
+    if (ratio <= 0.5)  return "#81c784";
+    if (ratio <= 0.75) return "#4caf50";
+    return "#2e7d32";
+  };
+
+  // Per-habit month grids
+  const monthGrids = allNames.map((name) => {
+    const months = MONTHS.map((label, mi) => {
+      const firstOfMonth = new Date(parseInt(year), mi, 1);
+      const pad = firstOfMonth.getDay();
+      const daysInMonth = new Date(parseInt(year), mi + 1, 0).getDate();
+      const cells = Array(pad).fill(null);
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = `${year}-${String(mi + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        cells.push({ key, done: !!dataMap[key]?.[name] });
+      }
+      const doneCount = cells.filter((c) => c?.done).length;
+      return { label, cells, doneCount, daysInMonth };
+    });
+    const totalDone = months.reduce((s, m) => s + m.doneCount, 0);
+    return { name, months, totalDone };
+  });
+
+  // Build per-habit month HTML
+  const habitRows = monthGrids.map(({ name, months, totalDone }) => `
+    <div class="habit-row">
+      <div class="habit-header">
+        <span class="habit-name">${name}</span>
+        <span class="habit-count">${totalDone} / ${totalDays} days</span>
+      </div>
+      <div class="month-row">
+        ${months.map(({ label, cells, daysInMonth }) => `
+          <div class="month-block">
+            <div class="month-label">${label}</div>
+            <div class="month-grid">
+              ${cells.map((c) => c === null
+                ? `<div class="day-cell empty"></div>`
+                : `<div class="day-cell ${c.done ? "done" : "miss"}"></div>`
+              ).join("")}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
+
+  // Build heatmap columns HTML
+  const heatmapCols = weeks.map((week, wi) => {
+    const firstDateInWeek = week.find((d) => d !== null);
+    const monthNum = firstDateInWeek ? parseInt(firstDateInWeek.slice(5, 7)) - 1 : null;
+    const isMonthStart = firstDateInWeek && new Date(firstDateInWeek).getDate() <= 7;
+    return `
+      <div class="week-col">
+        <div class="week-month-label">${isMonthStart && monthNum !== null ? MONTHS[monthNum] : ""}</div>
+        ${week.map((date) => `
+          <div class="heat-cell" style="background:${cellColor(date)}" title="${date ?? ""}"></div>
+        `).join("")}
+      </div>
+    `;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>MAR OS · ${year} Habit Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --floor:   #1A2118;
+    --canopy:  #2C372A;
+    --raised:  #232E21;
+    --moss:    #A9C4A1;
+    --moss2:   #7AAD72;
+    --moss3:   #4A7A42;
+    --moss4:   #2D5627;
+    --text:    #D9E6D3;
+    --dim:     #8FA88A;
+    --faint:   #5A7058;
+    --line:    #2E3D2C;
+    --oxide:   #C05C40;
+    --white:   #F0EDE6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Montserrat', sans-serif; background: var(--floor); color: var(--text); padding: 32px 36px; font-size: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Header */
+  .header { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 20px; }
+  .eyebrow { font-size: 9px; font-weight: 700; letter-spacing: 0.26em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+  h1 { font-size: 36px; font-weight: 900; letter-spacing: -0.045em; text-transform: uppercase; line-height: 0.9; color: var(--white); }
+  h1 span { color: var(--moss); }
+
+  /* Stats bar */
+  .stats { display: flex; gap: 0; margin-top: 20px; border: 1px solid var(--line); }
+  .stat { flex: 1; padding: 12px 16px; border-right: 1px solid var(--line); }
+  .stat:last-child { border-right: none; }
+  .stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--faint); }
+  .stat-val { font-size: 22px; font-weight: 800; color: var(--white); margin-top: 3px; letter-spacing: -0.02em; }
+
+  /* Section titles */
+  .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.16em; color: var(--faint); margin: 26px 0 10px; display: flex; align-items: center; gap: 10px; }
+  .section-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  /* Heatmap */
+  .heatmap { display: flex; gap: 3px; align-items: flex-end; }
+  .week-col { display: flex; flex-direction: column; gap: 2px; }
+  .week-month-label { font-size: 8px; color: var(--faint); height: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .heat-cell { width: 11px; height: 11px; }
+  .legend { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 9px; color: var(--faint); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .legend-cell { width: 10px; height: 10px; display: inline-block; }
+
+  /* Per-habit rows */
+  .habit-row { margin-bottom: 16px; page-break-inside: avoid; padding: 12px 14px; border: 1px solid var(--line); background: var(--raised); }
+  .habit-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .habit-name { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.14em; color: var(--white); }
+  .habit-count { font-size: 10px; font-weight: 600; color: var(--moss); letter-spacing: 0.06em; }
+  .month-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .month-block { }
+  .month-label { font-size: 7px; color: var(--faint); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px; }
+  .month-grid { display: grid; grid-template-columns: repeat(7, 7px); gap: 1.5px; }
+  .day-cell { width: 7px; height: 7px; }
+  .day-cell.empty { background: transparent; }
+  .day-cell.done { background: var(--moss); }
+  .day-cell.miss { background: var(--canopy); border: 1px solid var(--line); }
+
+  .footer { margin-top: 28px; font-size: 9px; color: var(--faint); text-align: right; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; border-top: 1px solid var(--line); padding-top: 12px; }
+
+  @media print {
+    body { padding: 14px 18px; }
+    @page { margin: 10mm; size: A4 landscape; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <p class="eyebrow">Maria Bogatinovska · Personal Operating System</p>
+  <h1>MAR<span>·</span>OS <span style="font-weight:300;font-size:0.55em;vertical-align:middle;letter-spacing:0;color:var(--dim)">${year} Habit Tracker</span></h1>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-label">Habits tracked</div><div class="stat-val">${allNames.length}</div></div>
+  <div class="stat"><div class="stat-label">Days logged</div><div class="stat-val">${totalDays}</div></div>
+  <div class="stat"><div class="stat-label">Perfect days</div><div class="stat-val">${completeDays}</div></div>
+  <div class="stat"><div class="stat-label">Avg completion</div><div class="stat-val">${avgPct}%</div></div>
+</div>
+
+<div class="section-title">Year at a glance · shaded by daily completion rate</div>
+<div class="heatmap">${heatmapCols}</div>
+<div class="legend">
+  <span>Less</span>
+  ${["#2C372A","#4A7A42","#6B9966","#8FB889","#A9C4A1"].map((c) => `<span class="legend-cell" style="background:${c}"></span>`).join("")}
+  <span>More</span>
+</div>
+
+<div class="section-title">Habit by habit · each square = one day · green = done</div>
+${habitRows}
+
+<p class="footer">Generated ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})} · MAR OS v2</p>
+<script>window.onload = () => setTimeout(() => window.print(), 600);</script>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank");
+  if (w) { w.document.write(html); w.document.close(); }
+}
+
 function exportHabitsCSV(allNames, prefix, label) {
   const entries = habitsStore.allEntries(prefix);
   if (!entries.length) { alert("No data found for that period."); return; }
@@ -153,6 +357,9 @@ export function Habits() {
           </Btn>
           <Btn tone="secondary" onClick={() => exportHabitsCSV(allKnownNames, null, "all-time")}>
             All time
+          </Btn>
+          <Btn tone="secondary" onClick={() => openYearPDF(names, allKnownNames, yearPrefix)}>
+            {yearPrefix} PDF
           </Btn>
         </div>
         <p className="mt-4 text-[12px] font-light" style={{ color: C.faint }}>
