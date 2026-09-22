@@ -4,18 +4,8 @@ const WORKSPACE = "9006080499";
 const GOALS_LIST = "901312614793";
 const HABIT_LOG_LIST = "901329140004";
 const PRIORITY_SPACES = ["90060197380", "90060197389"]; // Personal + Bogat A&D
-
-const PROGRESS_FIELD = "5d7ef7bf-df61-44c4-9826-ff82a385a8b3";
-const AREA_FIELD = "8e93d3f2-2695-40bb-8b74-19b528e3452b";
-const AREA_MAP = {
-  "88886779-f1ab-4807-b53e-963456a9def8": "Licensure",
-  "e254fc7f-23b3-48f2-8178-98e174450189": "Credentials",
-  "0929e517-beab-4670-bb68-5bbb9e32890f": "Finance",
-  "98250056-a4ed-44ec-bf55-090e31a69f86": "Portfolio",
-  "0928f39e-c48b-4b64-9466-9244dbc06138": "Brand",
-  "b8a39920-4add-4642-bbfc-185c289200d4": "Health",
-  "65115b50-da9d-4e0b-9fdd-710a69ef0f65": "Family",
-};
+const JOURNAL_DOC_ID = "8ccvrfk-36973";
+const JOURNAL_2026_PAGE_ID = "8ccvrfk-48613";
 
 function tok() {
   return import.meta.env.VITE_CLICKUP_TOKEN ?? "";
@@ -33,6 +23,8 @@ async function cu(path, opts = {}) {
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────────
+const PRIORITY_ORDER = { urgent: 0, high: 1, normal: 2, low: 3 };
+
 export async function fetchGoals() {
   const data = await cu(`/list/${GOALS_LIST}/task?subtasks=false&include_closed=false`);
 
@@ -40,21 +32,34 @@ export async function fetchGoals() {
     .filter((t) => !["canceled", "complete"].includes(t.status?.status?.toLowerCase()))
     .map((t) => {
       const fields = t.custom_fields ?? [];
-      const pf = fields.find((f) => f.id === PROGRESS_FIELD);
-      const af = fields.find((f) => f.id === AREA_FIELD);
-      const raw = pf?.value;
-      const progress =
-        typeof raw === "number" ? Math.round(raw) :
-        typeof raw === "object" && raw !== null ? Math.round(raw.current ?? 0) :
-        parseInt(raw) || 0;
-      const areaVal = af?.value;
-      const area = AREA_MAP[areaVal] ?? "Other";
+
+      // Area: find by field name, then resolve option label from type_config
+      const areaField = fields.find((f) => f.name?.toLowerCase() === "goal area");
+      let area = "Other";
+      if (areaField) {
+        const optId = areaField.value;
+        const opt = (areaField.type_config?.options ?? []).find((o) => o.id === optId);
+        area = opt?.name ?? (typeof optId === "string" && !optId.includes("-") ? optId : "Other");
+      }
+
+      // Progress: percent_done is the reliable source; fall back to any numeric custom field
+      let progress = typeof t.percent_done === "number" ? Math.round(t.percent_done) : 0;
+      if (!progress) {
+        const numField = fields.find(
+          (f) => ["number", "percent"].includes(f.type) &&
+                 f.name?.toLowerCase().includes("progress") &&
+                 f.value !== undefined && f.value !== null
+        );
+        if (numField) progress = Math.round(Number(numField.value)) || 0;
+      }
 
       return {
         id: t.id,
         title: t.name,
         area,
         progress,
+        priority: t.priority?.priority ?? "normal",
+        priorityColor: t.priority?.color ?? null,
         due: t.due_date
           ? new Date(parseInt(t.due_date)).toLocaleDateString("en-US", {
               month: "short", day: "numeric", year: "numeric",
@@ -65,8 +70,13 @@ export async function fetchGoals() {
       };
     })
     .sort((a, b) => {
-      const order = ["Licensure","Credentials","Health","Finance","Portfolio","Brand","Family","Other"];
-      return order.indexOf(a.area) - order.indexOf(b.area);
+      const pa = PRIORITY_ORDER[a.priority] ?? 99;
+      const pb = PRIORITY_ORDER[b.priority] ?? 99;
+      if (pa !== pb) return pa - pb;
+      if (!a.due && !b.due) return 0;
+      if (!a.due) return 1;
+      if (!b.due) return -1;
+      return new Date(a.due) - new Date(b.due);
     });
 }
 
@@ -125,5 +135,47 @@ export async function writeHabitDay(dateKey, habitData) {
     }
   } catch {
     // ClickUp sync is best-effort; localStorage is source of truth
+  }
+}
+
+// ── Journal (syncs to ClickUp doc "Journal" › 2026 › [date]) ────────────────
+export async function writeJournalEntry(dateLabel, entry) {
+  try {
+    const content = [
+      entry.mood ? `**Mood:** ${entry.mood}` : null,
+      "",
+      entry.text,
+    ].filter((l) => l !== null).join("\n");
+
+    // List existing pages to find if today already has one
+    const pagesRes = await fetch(
+      `${BASE}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages`,
+      { headers: { Authorization: tok(), "Content-Type": "application/json" } }
+    );
+    const pages = pagesRes.ok ? (await pagesRes.json()).pages ?? [] : [];
+    const existing = pages.find(
+      (p) => p.name === dateLabel && p.parent_page_id === JOURNAL_2026_PAGE_ID
+    );
+
+    const bodyJson = JSON.stringify({
+      name: dateLabel,
+      content,
+      content_format: "text/md",
+      parent_page_id: JOURNAL_2026_PAGE_ID,
+    });
+
+    if (existing) {
+      await fetch(
+        `${BASE}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages/${existing.id}`,
+        { method: "PUT", headers: { Authorization: tok(), "Content-Type": "application/json" }, body: bodyJson }
+      );
+    } else {
+      await fetch(
+        `${BASE}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages`,
+        { method: "POST", headers: { Authorization: tok(), "Content-Type": "application/json" }, body: bodyJson }
+      );
+    }
+  } catch {
+    // Best-effort; localStorage is source of truth
   }
 }

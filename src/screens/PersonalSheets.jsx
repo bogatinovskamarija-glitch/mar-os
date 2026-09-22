@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { Play, Pause, RotateCcw, ExternalLink, Music2, Save, Search, Copy, CalendarDays, ChevronRight } from "lucide-react";
+import { Play, Pause, RotateCcw, Save, Search, Copy, CalendarDays, ChevronRight } from "lucide-react";
 import { C, num } from "../theme";
 import { Label, Fig, Panel, Chip, Btn } from "../kit";
-import { focusPresets, playlists, journalMoods, focusIntention, journalPromptCategories, HABIT_NAMES, HABIT_NOTES } from "../data";
+import { focusPresets, journalMoods, focusIntention, journalPromptCategories, HABIT_NAMES, HABIT_NOTES } from "../data";
 import { useHabits } from "../hooks/useHabits";
 import { useGoals } from "../hooks/useGoals";
 import { usePriorities } from "../hooks/usePriorities";
@@ -69,23 +69,42 @@ export function Goals() {
       <Panel title="Goals connected to ClickUp" action={<Chip tone="keep">Live roll-up</Chip>} flush>
         {gLoading && <div className="px-5 py-10 text-[13px]" style={{ color: C.faint }}>Fetching goals from ClickUp…</div>}
         {gError && <div className="px-5 py-6 text-[13px]" style={{ color: C.oxide }}>{gError}</div>}
-        {!gLoading && goals.map((g) => (
-          <div key={g.id} className="px-5 py-5" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-[16px] font-semibold" style={{ color: C.text }}>{g.title}</div>
-                <div className="mt-1 text-[12px]" style={{ color: C.faint }}>
-                  {g.area ?? "—"} · {g.due ? `due ${g.due}` : "no due date"}
+        {!gLoading && goals.map((g) => {
+          const priColor = { urgent: C.oxide, high: "#C9963A", normal: C.moss, low: C.ghost }[g.priority] ?? C.ghost;
+          return (
+            <div key={g.id} className="px-5 py-5" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.14em] px-2 py-[2px] border"
+                      style={{ color: priColor, borderColor: priColor }}>
+                      {g.priority}
+                    </span>
+                    {g.area && g.area !== "Other" && (
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: C.faint }}>
+                        {g.area}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[15px] font-semibold leading-snug" style={{ color: C.text }}>{g.title}</div>
+                  <div className="mt-1 text-[12px]" style={{ color: C.faint }}>
+                    {g.due ? `Due ${g.due}` : "No due date"}
+                  </div>
                 </div>
+                <Fig size={22} color={g.progress >= 70 ? C.moss : g.progress > 0 ? C.text : C.ghost}>
+                  {g.progress}%
+                </Fig>
               </div>
-              <Fig size={22} color={g.progress > 60 ? C.moss : C.text}>{g.progress}%</Fig>
+              <div className="mt-3 h-[4px]" style={{ background: C.lineSoft }}>
+                <div className="h-full transition-all" style={{
+                  width: `${g.progress}%`,
+                  background: g.area === "Finance" ? C.oxide : priColor,
+                }} />
+              </div>
+              {g.why && <p className="mt-3 text-[13px] font-light" style={{ color: C.dim }}>{g.why}</p>}
             </div>
-            <div className="mt-4 h-[5px]" style={{ background: C.lineSoft }}>
-              <div className="h-full" style={{ width: `${g.progress}%`, background: g.area === "Finance" ? C.oxide : C.moss }} />
-            </div>
-            {g.why && <p className="mt-3 text-[13px] font-light" style={{ color: C.dim }}>{g.why}</p>}
-          </div>
-        ))}
+          );
+        })}
         {!gLoading && goals.length === 0 && !gError && (
           <div className="px-5 py-10">
             <div className="text-[14px] font-semibold" style={{ color: C.dim }}>No goals synced</div>
@@ -106,10 +125,10 @@ export function Goals() {
             <a key={p.id} href={p.url ?? "#"} target="_blank" rel="noreferrer"
               className="flex gap-4 border-b py-4 no-underline hover:bg-[#2C372A] px-1"
               style={{ borderColor: C.lineSoft }}>
-              <span className="text-[12px] font-bold" style={{ color: C.ghost }}>0{i + 1}</span>
-              <div>
+              <span className="text-[12px] font-bold tabular-nums" style={{ color: C.ghost }}>0{i + 1}</span>
+              <div className="flex-1 min-w-0">
                 <div className="text-[14px] leading-snug" style={{ color: C.text }}>{p.title}</div>
-                <div className="mt-2 text-[12px]" style={{ color: C.faint }}>{p.space ?? "ClickUp"} · {p.due ?? "Due today"}</div>
+                <div className="mt-1 text-[12px]" style={{ color: C.faint }}>{p.space ?? "ClickUp"} · {p.due ?? "Due today"}</div>
               </div>
             </a>
           ))}
@@ -119,21 +138,41 @@ export function Goals() {
   );
 }
 
-// ── Playlists (editable, saved to localStorage) ──────────────────────────────
+// ── Playlists (YouTube embed, editable, saved to localStorage) ───────────────
 
 const PLAYLIST_STORAGE_KEY = "mar-os-playlists";
 
+const DEFAULT_PLAYLISTS = [
+  { name: "Focus music", url: "#" },
+  { name: "Cardio / workout", url: "#" },
+  { name: "Morning start", url: "#" },
+  { name: "Chill studio", url: "#" },
+];
+
 function loadPlaylists() {
   try {
-    const stored = localStorage.getItem(PLAYLIST_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
+    const s = localStorage.getItem(PLAYLIST_STORAGE_KEY);
+    return s ? JSON.parse(s) : null;
   } catch { return null; }
 }
 
+function getYouTubeEmbed(url) {
+  if (!url || url === "#") return null;
+  try {
+    const u = new URL(url);
+    const list = u.searchParams.get("list");
+    if (list) return `https://www.youtube.com/embed/videoseries?list=${list}&autoplay=1`;
+    const v = u.searchParams.get("v") || (u.hostname === "youtu.be" ? u.pathname.slice(1) : null);
+    if (v) return `https://www.youtube.com/embed/${v}?autoplay=1`;
+  } catch {}
+  return null;
+}
+
 function PlaylistsPanel() {
-  const [items, setItems] = useState(() => loadPlaylists() ?? playlists);
-  const [editing, setEditing] = useState(null); // index being edited
+  const [items, setItems] = useState(() => loadPlaylists() ?? DEFAULT_PLAYLISTS);
+  const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState("");
+  const [active, setActive] = useState(null); // index of playing playlist
 
   const startEdit = (i) => { setEditing(i); setDraft(items[i].url === "#" ? "" : items[i].url); };
   const saveEdit = (i) => {
@@ -143,52 +182,69 @@ function PlaylistsPanel() {
     setEditing(null);
   };
 
+  const playOrStop = (i) => {
+    if (!getYouTubeEmbed(items[i].url)) return;
+    setActive((prev) => (prev === i ? null : i));
+  };
+
   return (
-    <Panel title="Playlists">
-      <div className="space-y-1">
-        {items.map((p, i) => (
-          <div key={p.name} className="border-b" style={{ borderColor: C.lineSoft }}>
-            {editing === i
-              ? <div className="flex items-center gap-2 py-2 px-1">
-                  <input
-                    autoFocus
-                    type="url"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") saveEdit(i); if (e.key === "Escape") setEditing(null); }}
-                    placeholder="Paste Spotify or YouTube URL"
-                    className="flex-1 border bg-transparent px-3 py-2 text-[13px] font-light outline-none"
-                    style={{ borderColor: C.moss, color: C.text }}
+    <Panel title="Music">
+      <div className="space-y-0">
+        {items.map((p, i) => {
+          const embedUrl = getYouTubeEmbed(p.url);
+          const isPlaying = active === i;
+          return (
+            <div key={i} className="border-b" style={{ borderColor: C.lineSoft }}>
+              {editing === i
+                ? <div className="flex items-center gap-2 px-2 py-2">
+                    <input
+                      autoFocus
+                      type="url"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveEdit(i); if (e.key === "Escape") setEditing(null); }}
+                      placeholder="Paste YouTube playlist or video URL"
+                      className="flex-1 border bg-transparent px-3 py-2 text-[13px] font-light outline-none"
+                      style={{ borderColor: C.moss, color: C.text }}
+                    />
+                    <button type="button" onClick={() => saveEdit(i)}
+                      className="px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em]"
+                      style={{ color: C.moss }}>Save</button>
+                    <button type="button" onClick={() => setEditing(null)}
+                      className="px-2 py-2 text-[12px]" style={{ color: C.faint }}>✕</button>
+                  </div>
+                : <div className="flex items-center gap-3 py-3 px-1">
+                    <button type="button" onClick={() => playOrStop(i)} disabled={!embedUrl}
+                      className={`grid h-8 w-8 shrink-0 place-items-center border transition-colors ${embedUrl ? "cursor-pointer" : "cursor-default opacity-30"}`}
+                      style={{ borderColor: isPlaying ? C.moss : C.line, background: isPlaying ? C.moss : "transparent" }}>
+                      {isPlaying
+                        ? <span style={{ color: C.forest, fontSize: 14, fontWeight: 700 }}>■</span>
+                        : <Play size={13} color={embedUrl ? C.moss : C.ghost} />}
+                    </button>
+                    <span className="flex-1 text-[14px]" style={{ color: embedUrl ? C.text : C.dim }}>{p.name}</span>
+                    <button type="button" onClick={() => startEdit(i)}
+                      className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.1em]"
+                      style={{ color: C.faint }}>
+                      {p.url === "#" ? "Add link" : "Edit"}
+                    </button>
+                  </div>}
+              {isPlaying && embedUrl && (
+                <div className="w-full" style={{ aspectRatio: "16/9" }}>
+                  <iframe
+                    src={embedUrl}
+                    className="h-full w-full"
+                    allow="autoplay; encrypted-media"
+                    allowFullScreen
+                    title={p.name}
                   />
-                  <button type="button" onClick={() => saveEdit(i)}
-                    className="px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em]"
-                    style={{ color: C.moss }}>Save</button>
-                  <button type="button" onClick={() => setEditing(null)}
-                    className="px-2 py-2 text-[12px]" style={{ color: C.faint }}>✕</button>
                 </div>
-              : <div className="flex items-center gap-3 py-3">
-                  <Music2 size={15} color={C.moss} />
-                  {p.url !== "#"
-                    ? <a href={p.url} target="_blank" rel="noreferrer"
-                        className="flex-1 text-[14px] no-underline hover:underline" style={{ color: C.text }}>
-                        {p.name}
-                      </a>
-                    : <span className="flex-1 text-[14px]" style={{ color: C.dim }}>{p.name}</span>}
-                  <Chip tone="neutral">{p.service}</Chip>
-                  {p.url !== "#"
-                    ? <a href={p.url} target="_blank" rel="noreferrer"><ExternalLink size={13} color={C.moss} /></a>
-                    : null}
-                  <button type="button" onClick={() => startEdit(i)}
-                    className="cursor-pointer px-1 text-[11px] font-semibold uppercase tracking-[0.1em]"
-                    style={{ color: C.faint }}>
-                    {p.url === "#" ? "Add link" : "Edit"}
-                  </button>
-                </div>}
-          </div>
-        ))}
+              )}
+            </div>
+          );
+        })}
       </div>
       <p className="mt-4 text-[12px] font-light" style={{ color: C.faint }}>
-        Click "Add link" to paste a Spotify or YouTube playlist URL. Links open in a new tab.
+        Click "Add link" to paste a YouTube playlist URL, then ▶ to play it here.
       </p>
     </Panel>
   );
