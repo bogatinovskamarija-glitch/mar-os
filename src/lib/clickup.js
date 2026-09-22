@@ -34,7 +34,7 @@ async function cu(path, opts = {}) {
 
 // ── Goals ────────────────────────────────────────────────────────────────────
 export async function fetchGoals() {
-  const data = await cu(`/list/${GOALS_LIST}/task?subtasks=false&include_closed=false&custom_fields=true`);
+  const data = await cu(`/list/${GOALS_LIST}/task?subtasks=false&include_closed=false`);
 
   return (data.tasks ?? [])
     .filter((t) => !["canceled", "complete"].includes(t.status?.status?.toLowerCase()))
@@ -90,8 +90,8 @@ export async function fetchPriorities() {
       const isToday = d && d.toDateString() === today.toDateString();
       return {
         id: t.id,
-        text: t.name,
-        from: t.list?.name ?? "Workspace",
+        title: t.name,
+        space: t.list?.name ?? t.space?.name ?? "Workspace",
         due: isToday ? "Today" : "Overdue",
         url: t.url,
       };
