@@ -17,7 +17,6 @@ function openYearPDF(activeNames, allNames, year) {
   const dataMap = {};
   entries.forEach(({ date, data }) => { dataMap[date] = data ?? {}; });
 
-  // All dates in the year
   const yearDates = [];
   for (let d = new Date(`${year}-01-01T00:00:00`); d.getFullYear() === parseInt(year); d.setDate(d.getDate() + 1)) {
     yearDates.push(d.toISOString().slice(0, 10));
@@ -34,80 +33,38 @@ function openYearPDF(activeNames, allNames, year) {
       }, 0) / totalDays * 100)
     : 0;
 
-  // GitHub-style grid: weeks as columns, 0=Sun … 6=Sat as rows
+  // Build Sunday-Saturday weeks
   const firstDay = new Date(`${year}-01-01T00:00:00`);
-  const startPad = firstDay.getDay(); // 0=Sun, pad empty cells at start
+  const startPad = firstDay.getDay();
   const gridCells = Array(startPad).fill(null).concat(yearDates);
   while (gridCells.length % 7 !== 0) gridCells.push(null);
   const weeks = [];
   for (let i = 0; i < gridCells.length; i += 7) weeks.push(gridCells.slice(i, i + 7));
 
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const cellColor = (date) => {
-    if (!date || !dataMap[date]) return "#eeeeee";
-    const done = allNames.filter((n) => dataMap[date]?.[n]).length;
-    const ratio = allNames.length ? done / allNames.length : 0;
-    if (ratio === 0) return "#eeeeee";
-    if (ratio <= 0.25) return "#c8e6c1";
-    if (ratio <= 0.5)  return "#81c784";
-    if (ratio <= 0.75) return "#4caf50";
-    return "#2e7d32";
+
+  const matrixColor = (ratio) => {
+    if (ratio === 0) return "#232E21";
+    if (ratio <= 0.28) return "#2D5627";
+    if (ratio <= 0.57) return "#4A7A42";
+    if (ratio <= 0.85) return "#6B9966";
+    return "#A9C4A1";
   };
 
-  // Per-habit month grids
-  const monthGrids = allNames.map((name) => {
-    const months = MONTHS.map((label, mi) => {
-      const firstOfMonth = new Date(parseInt(year), mi, 1);
-      const pad = firstOfMonth.getDay();
-      const daysInMonth = new Date(parseInt(year), mi + 1, 0).getDate();
-      const cells = Array(pad).fill(null);
-      for (let d = 1; d <= daysInMonth; d++) {
-        const key = `${year}-${String(mi + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-        cells.push({ key, done: !!dataMap[key]?.[name] });
-      }
-      const doneCount = cells.filter((c) => c?.done).length;
-      return { label, cells, doneCount, daysInMonth };
-    });
-    const totalDone = months.reduce((s, m) => s + m.doneCount, 0);
-    return { name, months, totalDone };
-  });
-
-  // Build per-habit month HTML
-  const habitRows = monthGrids.map(({ name, months, totalDone }) => `
-    <div class="habit-row">
-      <div class="habit-header">
-        <span class="habit-name">${name}</span>
-        <span class="habit-count">${totalDone} / ${totalDays} days</span>
-      </div>
-      <div class="month-row">
-        ${months.map(({ label, cells, daysInMonth }) => `
-          <div class="month-block">
-            <div class="month-label">${label}</div>
-            <div class="month-grid">
-              ${cells.map((c) => c === null
-                ? `<div class="day-cell empty"></div>`
-                : `<div class="day-cell ${c.done ? "done" : "miss"}"></div>`
-              ).join("")}
-            </div>
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `).join("");
-
-  // Build heatmap columns HTML
-  const heatmapCols = weeks.map((week, wi) => {
-    const firstDateInWeek = week.find((d) => d !== null);
-    const monthNum = firstDateInWeek ? parseInt(firstDateInWeek.slice(5, 7)) - 1 : null;
-    const isMonthStart = firstDateInWeek && new Date(firstDateInWeek).getDate() <= 7;
-    return `
-      <div class="week-col">
-        <div class="week-month-label">${isMonthStart && monthNum !== null ? MONTHS[monthNum] : ""}</div>
-        ${week.map((date) => `
-          <div class="heat-cell" style="background:${cellColor(date)}" title="${date ?? ""}"></div>
-        `).join("")}
-      </div>
-    `;
+  // Matrix: rows = weeks, columns = habits
+  const weekRows = weeks.map((week) => {
+    const firstDate = week.find((d) => d !== null);
+    if (!firstDate) return "";
+    const monthNum = parseInt(firstDate.slice(5, 7)) - 1;
+    const isMonthStart = new Date(`${firstDate}T00:00:00`).getDate() <= 7;
+    const monthLabel = isMonthStart ? MONTHS[monthNum] : "";
+    const datesInWeek = week.filter((d) => d !== null);
+    const cells = allNames.map((name) => {
+      const done = datesInWeek.filter((d) => dataMap[d]?.[name]).length;
+      const ratio = datesInWeek.length > 0 ? done / datesInWeek.length : 0;
+      return `<td class="mc" style="background:${matrixColor(ratio)}" title="${name}: ${done}/${datesInWeek.length} days"></td>`;
+    }).join("");
+    return `<tr><td class="wl">${monthLabel}</td>${cells}</tr>`;
   }).join("");
 
   const html = `<!DOCTYPE html>
@@ -118,76 +75,32 @@ function openYearPDF(activeNames, allNames, year) {
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
-  :root {
-    --floor:   #1A2118;
-    --canopy:  #2C372A;
-    --raised:  #232E21;
-    --moss:    #A9C4A1;
-    --moss2:   #7AAD72;
-    --moss3:   #4A7A42;
-    --moss4:   #2D5627;
-    --text:    #D9E6D3;
-    --dim:     #8FA88A;
-    --faint:   #5A7058;
-    --line:    #2E3D2C;
-    --oxide:   #C05C40;
-    --white:   #F0EDE6;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Montserrat', sans-serif; background: var(--floor); color: var(--text); padding: 32px 36px; font-size: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-  /* Header */
-  .header { border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 20px; }
-  .eyebrow { font-size: 9px; font-weight: 700; letter-spacing: 0.26em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
-  h1 { font-size: 36px; font-weight: 900; letter-spacing: -0.045em; text-transform: uppercase; line-height: 0.9; color: var(--white); }
-  h1 span { color: var(--moss); }
-
-  /* Stats bar */
-  .stats { display: flex; gap: 0; margin-top: 20px; border: 1px solid var(--line); }
-  .stat { flex: 1; padding: 12px 16px; border-right: 1px solid var(--line); }
-  .stat:last-child { border-right: none; }
-  .stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--faint); }
-  .stat-val { font-size: 22px; font-weight: 800; color: var(--white); margin-top: 3px; letter-spacing: -0.02em; }
-
-  /* Section titles */
-  .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.16em; color: var(--faint); margin: 26px 0 10px; display: flex; align-items: center; gap: 10px; }
-  .section-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-
-  /* Heatmap */
-  .heatmap { display: flex; gap: 3px; align-items: flex-end; }
-  .week-col { display: flex; flex-direction: column; gap: 2px; }
-  .week-month-label { font-size: 8px; color: var(--faint); height: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-  .heat-cell { width: 11px; height: 11px; }
-  .legend { display: flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 9px; color: var(--faint); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
-  .legend-cell { width: 10px; height: 10px; display: inline-block; }
-
-  /* Per-habit rows */
-  .habit-row { margin-bottom: 16px; page-break-inside: avoid; padding: 12px 14px; border: 1px solid var(--line); background: var(--raised); }
-  .habit-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
-  .habit-name { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.14em; color: var(--white); }
-  .habit-count { font-size: 10px; font-weight: 600; color: var(--moss); letter-spacing: 0.06em; }
-  .month-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .month-block { }
-  .month-label { font-size: 7px; color: var(--faint); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px; }
-  .month-grid { display: grid; grid-template-columns: repeat(7, 7px); gap: 1.5px; }
-  .day-cell { width: 7px; height: 7px; }
-  .day-cell.empty { background: transparent; }
-  .day-cell.done { background: var(--moss); }
-  .day-cell.miss { background: var(--canopy); border: 1px solid var(--line); }
-
-  .footer { margin-top: 28px; font-size: 9px; color: var(--faint); text-align: right; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; border-top: 1px solid var(--line); padding-top: 12px; }
-
-  @media print {
-    body { padding: 14px 18px; }
-    @page { margin: 10mm; size: A4 landscape; }
-  }
+  :root { --floor:#1A2118; --canopy:#2C372A; --raised:#232E21; --moss:#A9C4A1; --text:#D9E6D3; --dim:#8FA88A; --faint:#5A7058; --line:#2E3D2C; --white:#F0EDE6; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Montserrat',sans-serif; background:var(--floor); color:var(--text); padding:28px 32px; font-size:12px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .eyebrow { font-size:9px; font-weight:700; letter-spacing:0.26em; text-transform:uppercase; color:var(--dim); margin-bottom:6px; }
+  h1 { font-size:32px; font-weight:900; letter-spacing:-0.045em; text-transform:uppercase; color:var(--white); border-bottom:1px solid var(--line); padding-bottom:14px; margin-bottom:14px; }
+  h1 span { color:var(--moss); }
+  .stats { display:flex; gap:0; margin-bottom:22px; border:1px solid var(--line); }
+  .stat { flex:1; padding:10px 14px; border-right:1px solid var(--line); }
+  .stat:last-child { border-right:none; }
+  .stat-label { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.14em; color:var(--faint); }
+  .stat-val { font-size:20px; font-weight:800; color:var(--white); margin-top:2px; }
+  .section-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.16em; color:var(--faint); margin-bottom:10px; }
+  /* Matrix */
+  table.mx { border-collapse:collapse; }
+  .hc { font-size:7px; font-weight:800; color:var(--dim); text-transform:uppercase; letter-spacing:0.06em; writing-mode:vertical-rl; transform:rotate(180deg); height:55px; padding:0 2px 5px; vertical-align:bottom; white-space:nowrap; }
+  .wl { font-size:7px; color:var(--faint); font-weight:700; text-transform:uppercase; letter-spacing:0.07em; padding-right:7px; width:26px; white-space:nowrap; vertical-align:middle; }
+  .mc { width:13px; height:11px; border:1.5px solid var(--floor); }
+  .legend { display:flex; align-items:center; gap:5px; margin-top:10px; font-size:9px; color:var(--faint); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
+  .lc { width:11px; height:11px; display:inline-block; }
+  .footer { margin-top:18px; font-size:9px; color:var(--faint); text-align:right; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; border-top:1px solid var(--line); padding-top:10px; }
+  @media print { body { padding:12px 16px; } @page { margin:10mm; size:A4 portrait; } }
 </style>
 </head>
 <body>
-<div class="header">
-  <p class="eyebrow">Maria Bogatinovska · Personal Operating System</p>
-  <h1>MAR<span>·</span>OS <span style="font-weight:300;font-size:0.55em;vertical-align:middle;letter-spacing:0;color:var(--dim)">${year} Habit Tracker</span></h1>
-</div>
+<p class="eyebrow">Maria Bogatinovska · Personal Operating System</p>
+<h1>MAR<span>·</span>OS <span style="font-weight:300;font-size:0.5em;letter-spacing:0;color:var(--dim)">${year} Habit Tracker</span></h1>
 
 <div class="stats">
   <div class="stat"><div class="stat-label">Habits tracked</div><div class="stat-val">${allNames.length}</div></div>
@@ -196,16 +109,22 @@ function openYearPDF(activeNames, allNames, year) {
   <div class="stat"><div class="stat-label">Avg completion</div><div class="stat-val">${avgPct}%</div></div>
 </div>
 
-<div class="section-title">Year at a glance · shaded by daily completion rate</div>
-<div class="heatmap">${heatmapCols}</div>
-<div class="legend">
-  <span>Less</span>
-  ${["#2C372A","#4A7A42","#6B9966","#8FB889","#A9C4A1"].map((c) => `<span class="legend-cell" style="background:${c}"></span>`).join("")}
-  <span>More</span>
-</div>
+<p class="section-label">52 weeks × ${allNames.length} habits · shade = weekly completion rate</p>
+<table class="mx">
+  <thead>
+    <tr>
+      <th class="wl"></th>
+      ${allNames.map((n) => `<th class="hc">${n}</th>`).join("")}
+    </tr>
+  </thead>
+  <tbody>${weekRows}</tbody>
+</table>
 
-<div class="section-title">Habit by habit · each square = one day · green = done</div>
-${habitRows}
+<div class="legend">
+  <span>0 days</span>
+  ${["#232E21","#2D5627","#4A7A42","#6B9966","#A9C4A1"].map((c) => `<span class="lc" style="background:${c}"></span>`).join("")}
+  <span>7 days</span>
+</div>
 
 <p class="footer">Generated ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})} · MAR OS v2</p>
 <script>window.onload = () => setTimeout(() => window.print(), 600);</script>
@@ -239,9 +158,11 @@ export function Habits() {
   const { weekData, toggle, names, notes, retiredNames, addHabit, retireHabit, restoreHabit } = useHabits();
   const [managing, setManaging] = useState(false);
   const [newHabit, setNewHabit] = useState("");
+  const [exportYear, setExportYear] = useState(new Date().getFullYear());
 
   const allKnownNames = [...names, ...retiredNames];
   const now = new Date();
+  const currentYear = now.getFullYear();
   const yearPrefix = now.getFullYear().toString();
   const monthPrefix = now.toISOString().slice(0, 7);
   const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -346,20 +267,33 @@ export function Habits() {
 
       <Panel title="Export habit data">
         <p className="text-[14px] font-light mb-5" style={{ color: C.dim }}>
-          Downloads a CSV with a row per day and a column per habit — ready for Excel, Numbers, or Google Sheets.
+          CSV is ready for Excel, Numbers, or Google Sheets. PDF shows a 52-week matrix — habits on columns, weeks on rows.
         </p>
+        <div className="flex items-center gap-3 mb-5">
+          <span className="text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>Year</span>
+          <button type="button"
+            onClick={() => setExportYear((y) => y - 1)}
+            className="cursor-pointer px-2 py-1 text-[14px] font-bold"
+            style={{ color: C.moss, border: `1px solid ${C.line}`, background: C.raised }}>←</button>
+          <span className="text-[18px] font-bold" style={{ color: C.white, minWidth: 50, textAlign: "center" }}>{exportYear}</span>
+          <button type="button"
+            onClick={() => setExportYear((y) => Math.min(currentYear, y + 1))}
+            disabled={exportYear >= currentYear}
+            className="cursor-pointer px-2 py-1 text-[14px] font-bold disabled:opacity-30"
+            style={{ color: C.moss, border: `1px solid ${C.line}`, background: C.raised }}>→</button>
+        </div>
         <div className="flex flex-wrap gap-3">
           <Btn tone="secondary" onClick={() => exportHabitsCSV(allKnownNames, monthPrefix, monthLabel)}>
-            {monthLabel}
+            {monthLabel} CSV
           </Btn>
-          <Btn tone="secondary" onClick={() => exportHabitsCSV(allKnownNames, yearPrefix, yearPrefix)}>
-            All of {yearPrefix}
+          <Btn tone="secondary" onClick={() => exportHabitsCSV(allKnownNames, exportYear.toString(), exportYear.toString())}>
+            {exportYear} CSV
           </Btn>
           <Btn tone="secondary" onClick={() => exportHabitsCSV(allKnownNames, null, "all-time")}>
-            All time
+            All time CSV
           </Btn>
-          <Btn tone="secondary" onClick={() => openYearPDF(names, allKnownNames, yearPrefix)}>
-            {yearPrefix} PDF
+          <Btn tone="secondary" onClick={() => openYearPDF(names, allKnownNames, exportYear.toString())}>
+            {exportYear} PDF
           </Btn>
         </div>
         <p className="mt-4 text-[12px] font-light" style={{ color: C.faint }}>

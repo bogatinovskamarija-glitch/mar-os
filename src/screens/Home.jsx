@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Play, ArrowUpRight, Clock3 } from "lucide-react";
+import { Check, Play, ArrowUpRight, Clock3, Sun, Cloud, CloudRain, Snowflake, CloudLightning, Wind } from "lucide-react";
 import { C, money } from "../theme";
 import { Label, Fig, Panel, Chip, Btn, rise } from "../kit";
 import { useHabits } from "../hooks/useHabits";
@@ -8,6 +8,18 @@ import { usePriorities } from "../hooks/usePriorities";
 import { useGoals } from "../hooks/useGoals";
 import { useFocus } from "../hooks/useFocus";
 import { useFinance } from "../hooks/useFinance";
+import { useWeather } from "../hooks/useWeather";
+
+function WeatherIcon({ code, ...props }) {
+  const I = code === 0 || code === 1 ? Sun
+    : code <= 3 ? Cloud
+    : code <= 48 ? Wind
+    : code <= 67 ? CloudRain
+    : code <= 77 ? Snowflake
+    : code <= 82 ? CloudRain
+    : CloudLightning;
+  return <I {...props} />;
+}
 
 export default function Home({ go }) {
   const { checks, toggle, done, total, streak, names: HABIT_NAMES, notes: HABIT_NOTES } = useHabits();
@@ -16,6 +28,7 @@ export default function Home({ go }) {
   const { todayMins, goalMin } = useFocus();
   const { accounts, cantilever, hasData } = useFinance();
 
+  const { weather, loading: wLoading, error: wError } = useWeather();
   const liquid = accounts.filter((a) => a.balance > 0).reduce((a, x) => a + x.balance, 0);
   const outstanding = cantilever.fronted.reduce((a, r) => a + r.amount - r.back, 0);
 
@@ -26,7 +39,7 @@ export default function Home({ go }) {
     <div className="space-y-7">
       {/* Hero row */}
       <motion.div variants={rise} initial="hidden" animate="show" custom={0}>
-        <div className="grid gap-px lg:grid-cols-[1.45fr_1fr_1fr]" style={{ background: C.line, border: `1px solid ${C.line}` }}>
+        <div className="grid gap-px lg:grid-cols-[1.45fr_1fr_1fr_0.7fr]" style={{ background: C.line, border: `1px solid ${C.line}` }}>
           <div className="px-6 py-6" style={{ background: "rgba(36,46,34,0.7)", backdropFilter: "blur(14px)" }}>
             <Label>Today · {todayLabel}</Label>
             <h3 className="mt-3 text-[29px] font-bold leading-[1.05]" style={{ color: C.white }}>
@@ -64,6 +77,25 @@ export default function Home({ go }) {
               style={{ color: C.moss }}>
               Start focus <Play size={13} />
             </button>
+          </div>
+          <div className="px-6 py-6" style={{ background: "rgba(36,46,34,0.7)", backdropFilter: "blur(14px)" }}>
+            <Label>Weather</Label>
+            {wLoading
+              ? <div className="mt-4 text-[12px]" style={{ color: C.faint }}>Locating…</div>
+              : wError === "denied"
+              ? <div className="mt-4 text-[12px]" style={{ color: C.faint }}>Allow location to see weather.</div>
+              : wError
+              ? <div className="mt-4 text-[12px]" style={{ color: C.faint }}>Unavailable</div>
+              : weather
+              ? <>
+                  <div className="mt-3 flex items-end gap-3">
+                    <WeatherIcon code={weather.code} size={20} color={C.moss} />
+                    <Fig size={34} color={C.white}>{weather.temp}°C</Fig>
+                  </div>
+                  <div className="mt-2 text-[12px] font-semibold" style={{ color: C.dim }}>{weather.desc}</div>
+                  <div className="mt-1 text-[11px]" style={{ color: C.faint }}>Feels {weather.feels}° · {weather.city}</div>
+                </>
+              : null}
           </div>
         </div>
       </motion.div>
