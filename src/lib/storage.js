@@ -45,10 +45,12 @@ export const habitsStore = {
 // Shape: { active: string[], retired: string[] }
 export const habitsConfigStore = {
   get(defaultNames) {
-    return safe(
-      () => JSON.parse(localStorage.getItem("habits:config")),
-      { active: defaultNames ?? [], retired: [] }
-    );
+    const fallback = { active: defaultNames ?? [], retired: [] };
+    const stored = safe(() => {
+      const raw = localStorage.getItem("habits:config");
+      return raw ? JSON.parse(raw) : null;
+    }, null);
+    return stored ?? fallback;
   },
   set(config) {
     safe(() => localStorage.setItem("habits:config", JSON.stringify(config)));
