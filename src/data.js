@@ -117,10 +117,12 @@ export const FALLBACK_ENVELOPE = [
 ];
 
 export const FALLBACK_ACCOUNTS = [
-  { name: "Chase · personal checking", balance: 0, kind: "checking" },
-  { name: "Chase · savings", balance: 0, kind: "savings" },
-  { name: "Amex · Gold", balance: 0, kind: "credit", limit: 12000 },
-  { name: "Chase · Freedom", balance: 0, kind: "credit", limit: 8000 },
+  { name: "BofA · checking",  balance: 0, kind: "checking" },
+  { name: "BofA · savings",   balance: 0, kind: "savings" },
+  { name: "Amex · Platinum",  balance: 0, kind: "credit", limit: 25000 },
+  { name: "Amex · Blue Cash", balance: 0, kind: "credit", limit: 10000 },
+  { name: "Citi · Strata",    balance: 0, kind: "credit", limit: 9000 },
+  { name: "Discover it",      balance: 0, kind: "credit", limit: 6500 },
 ];
 
 export const FOCUS_GOAL_MIN = 240;
