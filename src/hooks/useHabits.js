@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { habitsStore, todayKey } from "../lib/storage";
 import { writeHabitDay } from "../lib/clickup";
 import { HABIT_NAMES, HABIT_NOTES } from "../data";
@@ -7,6 +7,9 @@ function emptyChecks() {
   return Object.fromEntries(HABIT_NAMES.map((n) => [n, 0]));
 }
 
+// Shared subscribers so all useHabits() instances stay in sync
+const _subscribers = new Set();
+
 export function useHabits() {
   const today = todayKey();
 
@@ -14,11 +17,18 @@ export function useHabits() {
     return habitsStore.get(today) ?? emptyChecks();
   });
 
+  useEffect(() => {
+    const refresh = () => setChecks(habitsStore.get(today) ?? emptyChecks());
+    _subscribers.add(refresh);
+    return () => _subscribers.delete(refresh);
+  }, [today]);
+
   const toggle = useCallback((habitName) => {
     setChecks((prev) => {
       const next = { ...prev, [habitName]: prev[habitName] ? 0 : 1 };
       habitsStore.set(today, next);
-      writeHabitDay(today, next); // fire-and-forget ClickUp sync
+      writeHabitDay(today, next);
+      _subscribers.forEach((fn) => fn());
       return next;
     });
   }, [today]);

@@ -167,17 +167,11 @@ export default function App() {
         </div>
 
         <div className="mt-16 border-t pt-8" style={{ borderColor: C.line }}>
-          <div className="flex flex-wrap items-center justify-between gap-5">
-            <div>
-              <Label color={C.moss}>MAR OS · private sheet</Label>
-              <p className="mt-3 max-w-[55ch] text-[15px] font-light leading-[1.55]" style={{ color: C.dim }}>
-                A daily home for the person behind the projects.
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: C.faint }}>Revision</div>
-              <div className="mt-2 text-[14px]" style={{ ...num, color: C.text }}>09.22.26 · v2</div>
-            </div>
+          <div>
+            <Label color={C.moss}>MAR OS · private sheet</Label>
+            <p className="mt-3 max-w-[55ch] text-[15px] font-light leading-[1.55]" style={{ color: C.dim }}>
+              A daily home for the person behind the projects.
+            </p>
           </div>
         </div>
       </main>

@@ -119,6 +119,81 @@ export function Goals() {
   );
 }
 
+// ── Playlists (editable, saved to localStorage) ──────────────────────────────
+
+const PLAYLIST_STORAGE_KEY = "mar-os-playlists";
+
+function loadPlaylists() {
+  try {
+    const stored = localStorage.getItem(PLAYLIST_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch { return null; }
+}
+
+function PlaylistsPanel() {
+  const [items, setItems] = useState(() => loadPlaylists() ?? playlists);
+  const [editing, setEditing] = useState(null); // index being edited
+  const [draft, setDraft] = useState("");
+
+  const startEdit = (i) => { setEditing(i); setDraft(items[i].url === "#" ? "" : items[i].url); };
+  const saveEdit = (i) => {
+    const updated = items.map((p, idx) => idx === i ? { ...p, url: draft.trim() || "#" } : p);
+    setItems(updated);
+    try { localStorage.setItem(PLAYLIST_STORAGE_KEY, JSON.stringify(updated)); } catch {}
+    setEditing(null);
+  };
+
+  return (
+    <Panel title="Playlists">
+      <div className="space-y-1">
+        {items.map((p, i) => (
+          <div key={p.name} className="border-b" style={{ borderColor: C.lineSoft }}>
+            {editing === i
+              ? <div className="flex items-center gap-2 py-2 px-1">
+                  <input
+                    autoFocus
+                    type="url"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveEdit(i); if (e.key === "Escape") setEditing(null); }}
+                    placeholder="Paste Spotify or YouTube URL"
+                    className="flex-1 border bg-transparent px-3 py-2 text-[13px] font-light outline-none"
+                    style={{ borderColor: C.moss, color: C.text }}
+                  />
+                  <button type="button" onClick={() => saveEdit(i)}
+                    className="px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em]"
+                    style={{ color: C.moss }}>Save</button>
+                  <button type="button" onClick={() => setEditing(null)}
+                    className="px-2 py-2 text-[12px]" style={{ color: C.faint }}>✕</button>
+                </div>
+              : <div className="flex items-center gap-3 py-3">
+                  <Music2 size={15} color={C.moss} />
+                  {p.url !== "#"
+                    ? <a href={p.url} target="_blank" rel="noreferrer"
+                        className="flex-1 text-[14px] no-underline hover:underline" style={{ color: C.text }}>
+                        {p.name}
+                      </a>
+                    : <span className="flex-1 text-[14px]" style={{ color: C.dim }}>{p.name}</span>}
+                  <Chip tone="neutral">{p.service}</Chip>
+                  {p.url !== "#"
+                    ? <a href={p.url} target="_blank" rel="noreferrer"><ExternalLink size={13} color={C.moss} /></a>
+                    : null}
+                  <button type="button" onClick={() => startEdit(i)}
+                    className="cursor-pointer px-1 text-[11px] font-semibold uppercase tracking-[0.1em]"
+                    style={{ color: C.faint }}>
+                    {p.url === "#" ? "Add link" : "Edit"}
+                  </button>
+                </div>}
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-[12px] font-light" style={{ color: C.faint }}>
+        Click "Add link" to paste a Spotify or YouTube playlist URL. Links open in a new tab.
+      </p>
+    </Panel>
+  );
+}
+
 // ── Focus ────────────────────────────────────────────────────────────────────
 
 export function Focus() {
@@ -175,6 +250,11 @@ export function Focus() {
                       </Btn>
                     </>}
               </div>
+              {!started && !ready && (
+                <p className="mt-4 text-[12px]" style={{ color: C.faint }}>
+                  Type your focus target on the right to unlock Start
+                </p>
+              )}
               {started && <p className="mt-5 text-[12px]" style={{ color: C.faint }}>If stuck: {recovery}</p>}
             </div>
           </Panel>
@@ -242,23 +322,7 @@ export function Focus() {
                 </div>
               </Panel>}
 
-          <Panel title="Playlists">
-            <div className="space-y-1">
-              {playlists.map((p) => (
-                <a key={p.name} href={p.url} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-3 border-b py-3 no-underline"
-                  style={{ borderColor: C.lineSoft }}>
-                  <Music2 size={15} color={C.moss} />
-                  <span className="flex-1 text-[14px]" style={{ color: C.text }}>{p.name}</span>
-                  <Chip tone="neutral">{p.service}</Chip>
-                  <ExternalLink size={13} color={C.faint} />
-                </a>
-              ))}
-            </div>
-            <p className="mt-4 text-[12px] font-light" style={{ color: C.faint }}>
-              Update the playlist URLs in src/data.js to make them launch directly.
-            </p>
-          </Panel>
+          <PlaylistsPanel />
 
           {sessions.length > 0 && (
             <Panel title="Recent sessions" flush>
