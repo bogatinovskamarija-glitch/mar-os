@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { buildFinanceState } from "./finance";
 
 // Publishable key — safe to include in client-side code
 export const supabase = createClient(
@@ -30,13 +31,14 @@ export async function syncDown(uid) {
   ago.setFullYear(ago.getFullYear() - 1);
   const since = ago.toISOString().slice(0, 10);
 
-  const [cfg, entries, journal, focus, sessions, settings] = await Promise.all([
+  const [cfg, entries, journal, focus, sessions, settings, finance] = await Promise.all([
     supabase.from("mar_os_habits_config").select("active,retired").eq("user_id", uid).maybeSingle(),
     supabase.from("mar_os_habit_entries").select("date,data").eq("user_id", uid).gte("date", since),
     supabase.from("mar_os_journal_entries").select("date,text,mood,saved_at").eq("user_id", uid).gte("date", since),
     supabase.from("mar_os_focus").select("date,minutes").eq("user_id", uid).gte("date", since),
     supabase.from("mar_os_focus_sessions").select("date_label,target,done,mins,result").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
     supabase.from("mar_os_settings").select("key,value").eq("user_id", uid),
+    supabase.from("mar_os_finance_transactions").select("date,description,amount,account,category,trucking").eq("user_id", uid).order("date", { ascending: true }),
   ]);
 
   try {
@@ -61,6 +63,12 @@ export async function syncDown(uid) {
       if (s.key === "playlists" && s.value) {
         localStorage.setItem("mar-os-playlists", JSON.stringify(s.value));
       }
+    }
+    const txns = finance.data ?? [];
+    if (txns.length > 0) {
+      const state = buildFinanceState(txns);
+      localStorage.setItem("finance:data", JSON.stringify(state));
+      localStorage.setItem("finance:importedAt", new Date().toISOString());
     }
   } catch {}
 }

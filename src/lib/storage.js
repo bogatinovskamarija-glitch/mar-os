@@ -154,6 +154,25 @@ export const financeStore = {
   set(data) {
     safe(() => localStorage.setItem("finance:data", JSON.stringify(data)));
     safe(() => localStorage.setItem("finance:importedAt", new Date().toISOString()));
+    // Sync raw transactions to Supabase in batches
+    const uid = getUid();
+    if (!uid || !data?.transactions?.length) return;
+    const txns = data.transactions;
+    const BATCH = 500;
+    for (let i = 0; i < txns.length; i += BATCH) {
+      const rows = txns.slice(i, i + BATCH).map((t) => ({
+        user_id: uid,
+        date: t.date,
+        description: t.description,
+        amount: t.amount,
+        account: t.account,
+        category: t.category ?? null,
+        trucking: t.trucking ?? false,
+      }));
+      supabase.from("mar_os_finance_transactions")
+        .upsert(rows, { onConflict: "user_id,date,description,amount,account" })
+        .then(() => {});
+    }
   },
   importedAt() {
     return safe(() => localStorage.getItem("finance:importedAt"), null);
