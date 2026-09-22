@@ -37,14 +37,19 @@ export function useHabits() {
   const total = HABIT_NAMES.length;
   const streak = useMemo(() => habitsStore.streak(total), [done]);
 
-  // 7-day grid for the Habits sheet
+  // Current Sun–Sat week for the Habits sheet
   const weekData = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const todayStr = now.toISOString().slice(0, 10);
+    // Rewind to Sunday (getDay() returns 0 for Sunday)
+    const sunday = new Date(now);
+    sunday.setDate(now.getDate() - now.getDay());
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      d.setHours(0, 0, 0, 0);
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + i);
       const key = d.toISOString().slice(0, 10);
-      const isToday = i === 6;
+      const isToday = key === todayStr;
       const stored = isToday ? checks : (habitsStore.get(key) ?? emptyChecks());
       return {
         date: d,

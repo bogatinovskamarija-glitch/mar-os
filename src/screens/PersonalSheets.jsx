@@ -404,7 +404,7 @@ export function Focus() {
 // ── Journal ──────────────────────────────────────────────────────────────────
 
 export function Journal() {
-  const { text, setText, mood, setMood, words, savedTime, save, stats, todayDate } = useJournal();
+  const { text, setText, mood, setMood, words, savedTime, save, stats, todayDate, syncStatus } = useJournal();
   const [catIdx, setCatIdx] = useState(0);
   const [promptIdx, setPromptIdx] = useState(0);
   const [search, setSearch] = useState("");
@@ -419,7 +419,10 @@ export function Journal() {
             <span className="text-[14px]" style={{ ...num, color: C.dim }}>{todayDate}</span>
           </div>
           <span className="text-[12px]" style={{ color: C.faint }}>
-            {words} words{savedTime ? ` · last saved ${savedTime}` : ""}
+            {words} words{savedTime ? ` · saved ${savedTime}` : ""}
+            {syncStatus === "syncing" && " · syncing to ClickUp…"}
+            {syncStatus === "synced" && " · ✓ ClickUp updated"}
+            {syncStatus?.startsWith("error:") && ` · ClickUp sync failed: ${syncStatus.slice(6)}`}
           </span>
         </div>
 

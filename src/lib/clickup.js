@@ -1,9 +1,14 @@
 const BASE = "https://api.clickup.com/api/v2";
+const BASE_V3 = "https://api.clickup.com/api/v3";
 
 const WORKSPACE = "9006080499";
 const GOALS_LIST = "901312614793";
 const HABIT_LOG_LIST = "901329140004";
-const PRIORITY_SPACES = ["90060197380", "90060197389"]; // Personal + Bogat A&D
+// Specific task lists for priorities (excludes Goals, Passwords, etc.)
+const PRIORITY_LISTS = [
+  "900601298786", // 01_Planner (Personal)
+  "901327985893", // Q3 Business Sprint (Bogat A&D)
+];
 const JOURNAL_DOC_ID = "8ccvrfk-36973";
 const JOURNAL_2026_PAGE_ID = "8ccvrfk-48613";
 
@@ -80,13 +85,13 @@ export async function fetchGoals() {
     });
 }
 
-// ── Priorities (tasks due today or overdue, across Personal + Bogat A&D) ─────
+// ── Priorities (tasks due today or overdue from 01_Planner + Q3 Sprint) ──────
 export async function fetchPriorities() {
   const end = new Date();
   end.setHours(23, 59, 59, 999);
   const ts = end.getTime();
 
-  const params = PRIORITY_SPACES.map((id) => `space_ids[]=${id}`).join("&");
+  const params = PRIORITY_LISTS.map((id) => `list_ids[]=${id}`).join("&");
   const data = await cu(
     `/team/${WORKSPACE}/task?${params}&include_closed=false&due_date_lte=${ts}&page=0&order_by=due_date&subtasks=false`
   );
@@ -94,14 +99,14 @@ export async function fetchPriorities() {
   const today = new Date();
   return (data.tasks ?? [])
     .filter((t) => !["canceled", "complete"].includes(t.status?.status?.toLowerCase()))
-    .slice(0, 5)
+    .slice(0, 8)
     .map((t) => {
       const d = t.due_date ? new Date(parseInt(t.due_date)) : null;
       const isToday = d && d.toDateString() === today.toDateString();
       return {
         id: t.id,
         title: t.name,
-        space: t.list?.name ?? t.space?.name ?? "Workspace",
+        space: t.list?.name ?? "ClickUp",
         due: isToday ? "Today" : "Overdue",
         url: t.url,
       };
@@ -140,6 +145,8 @@ export async function writeHabitDay(dateKey, habitData) {
 
 // ── Journal (syncs to ClickUp doc "Journal" › 2026 › [date]) ────────────────
 export async function writeJournalEntry(dateLabel, entry) {
+  const t = tok();
+  if (!t) return { ok: false, error: "No API token" };
   try {
     const content = [
       entry.mood ? `**Mood:** ${entry.mood}` : null,
@@ -147,14 +154,14 @@ export async function writeJournalEntry(dateLabel, entry) {
       entry.text,
     ].filter((l) => l !== null).join("\n");
 
-    // List existing pages to find if today already has one
+    // List existing pages under the doc (v3 API)
     const pagesRes = await fetch(
-      `${BASE}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages`,
-      { headers: { Authorization: tok(), "Content-Type": "application/json" } }
+      `${BASE_V3}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages`,
+      { headers: { Authorization: t } }
     );
     const pages = pagesRes.ok ? (await pagesRes.json()).pages ?? [] : [];
     const existing = pages.find(
-      (p) => p.name === dateLabel && p.parent_page_id === JOURNAL_2026_PAGE_ID
+      (p) => p.name === dateLabel && (p.parent_page_id === JOURNAL_2026_PAGE_ID || p.parentPageId === JOURNAL_2026_PAGE_ID)
     );
 
     const bodyJson = JSON.stringify({
@@ -163,19 +170,26 @@ export async function writeJournalEntry(dateLabel, entry) {
       content_format: "text/md",
       parent_page_id: JOURNAL_2026_PAGE_ID,
     });
+    const headers = { Authorization: t, "Content-Type": "application/json" };
 
+    let res;
     if (existing) {
-      await fetch(
-        `${BASE}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages/${existing.id}`,
-        { method: "PUT", headers: { Authorization: tok(), "Content-Type": "application/json" }, body: bodyJson }
+      res = await fetch(
+        `${BASE_V3}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages/${existing.id}`,
+        { method: "PUT", headers, body: bodyJson }
       );
     } else {
-      await fetch(
-        `${BASE}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages`,
-        { method: "POST", headers: { Authorization: tok(), "Content-Type": "application/json" }, body: bodyJson }
+      res = await fetch(
+        `${BASE_V3}/workspaces/${WORKSPACE}/docs/${JOURNAL_DOC_ID}/pages`,
+        { method: "POST", headers, body: bodyJson }
       );
     }
-  } catch {
-    // Best-effort; localStorage is source of truth
+    if (!res.ok) {
+      const err = await res.text();
+      return { ok: false, error: `ClickUp ${res.status}: ${err}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
   }
 }

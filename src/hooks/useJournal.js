@@ -15,14 +15,18 @@ export function useJournal() {
     [text]
   );
 
-  const save = useCallback(() => {
+  const [syncStatus, setSyncStatus] = useState(null); // null | "syncing" | "synced" | "error"
+
+  const save = useCallback(async () => {
     const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
     journalStore.set(today, { text, mood, words, saved: now });
     setSavedTime(now);
     const dateLabel = new Date().toLocaleDateString("en-US", {
       weekday: "long", month: "long", day: "numeric", year: "numeric",
     });
-    writeJournalEntry(dateLabel, { text, mood });
+    setSyncStatus("syncing");
+    const result = await writeJournalEntry(dateLabel, { text, mood });
+    setSyncStatus(result.ok ? "synced" : "error:" + result.error);
   }, [today, text, mood, words]);
 
   const stats = useMemo(() => journalStore.stats(), [savedTime]);
@@ -33,5 +37,5 @@ export function useJournal() {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
 
-  return { text, setText, mood, setMood, words, savedTime, save, stats, allDates, todayDate };
+  return { text, setText, mood, setMood, words, savedTime, save, stats, allDates, todayDate, syncStatus };
 }
