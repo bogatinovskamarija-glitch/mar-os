@@ -17,11 +17,6 @@ function openYearPDF(activeNames, allNames, year) {
   const dataMap = {};
   entries.forEach(({ date, data }) => { dataMap[date] = data ?? {}; });
 
-  const yearDates = [];
-  for (let d = new Date(`${year}-01-01T00:00:00`); d.getFullYear() === parseInt(year); d.setDate(d.getDate() + 1)) {
-    yearDates.push(d.toISOString().slice(0, 10));
-  }
-
   const totalDays = entries.length;
   const completeDays = entries.filter(({ data }) =>
     allNames.length > 0 && allNames.every((n) => data?.[n])
@@ -33,38 +28,33 @@ function openYearPDF(activeNames, allNames, year) {
       }, 0) / totalDays * 100)
     : 0;
 
-  // Build Sunday-Saturday weeks
-  const firstDay = new Date(`${year}-01-01T00:00:00`);
-  const startPad = firstDay.getDay();
-  const gridCells = Array(startPad).fill(null).concat(yearDates);
-  while (gridCells.length % 7 !== 0) gridCells.push(null);
-  const weeks = [];
-  for (let i = 0; i < gridCells.length; i += 7) weeks.push(gridCells.slice(i, i + 7));
-
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const yr = parseInt(year);
 
-  const matrixColor = (ratio) => {
-    if (ratio === 0) return "#232E21";
-    if (ratio <= 0.28) return "#2D5627";
-    if (ratio <= 0.57) return "#4A7A42";
-    if (ratio <= 0.85) return "#6B9966";
-    return "#A9C4A1";
-  };
-
-  // Matrix: rows = weeks, columns = habits
-  const weekRows = weeks.map((week) => {
-    const firstDate = week.find((d) => d !== null);
-    if (!firstDate) return "";
-    const monthNum = parseInt(firstDate.slice(5, 7)) - 1;
-    const isMonthStart = new Date(`${firstDate}T00:00:00`).getDate() <= 7;
-    const monthLabel = isMonthStart ? MONTHS[monthNum] : "";
-    const datesInWeek = week.filter((d) => d !== null);
-    const cells = allNames.map((name) => {
-      const done = datesInWeek.filter((d) => dataMap[d]?.[name]).length;
-      const ratio = datesInWeek.length > 0 ? done / datesInWeek.length : 0;
-      return `<td class="mc" style="background:${matrixColor(ratio)}" title="${name}: ${done}/${datesInWeek.length} days"></td>`;
+  // Build matrix rows: habits on Y, months on X
+  // Each cell = mini day grid (7 cols, day squares) for that habit × month
+  const matrixRows = allNames.map((name) => {
+    const habitTotal = entries.filter(({ data }) => !!data?.[name]).length;
+    const monthCells = MONTHS.map((_, mi) => {
+      const pad = new Date(yr, mi, 1).getDay(); // Sun=0 offset
+      const daysInMonth = new Date(yr, mi + 1, 0).getDate();
+      const cells = Array(pad).fill(null);
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = `${year}-${String(mi + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        cells.push(dataMap[key]?.[name] ? "Y" : "N");
+      }
+      while (cells.length % 7 !== 0) cells.push(null);
+      const squares = cells.map((c) =>
+        c === null ? `<div class="ds e"></div>`
+        : c === "Y"  ? `<div class="ds y"></div>`
+        :               `<div class="ds n"></div>`
+      ).join("");
+      return `<td class="mc"><div class="mg">${squares}</div></td>`;
     }).join("");
-    return `<tr><td class="wl">${monthLabel}</td>${cells}</tr>`;
+    return `<tr>
+      <td class="hl">${name}<br/><span class="hn">${habitTotal}d</span></td>
+      ${monthCells}
+    </tr>`;
   }).join("");
 
   const html = `<!DOCTYPE html>
@@ -77,25 +67,33 @@ function openYearPDF(activeNames, allNames, year) {
 <style>
   :root { --floor:#1A2118; --canopy:#2C372A; --raised:#232E21; --moss:#A9C4A1; --text:#D9E6D3; --dim:#8FA88A; --faint:#5A7058; --line:#2E3D2C; --white:#F0EDE6; }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Montserrat',sans-serif; background:var(--floor); color:var(--text); padding:28px 32px; font-size:12px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .eyebrow { font-size:9px; font-weight:700; letter-spacing:0.26em; text-transform:uppercase; color:var(--dim); margin-bottom:6px; }
-  h1 { font-size:32px; font-weight:900; letter-spacing:-0.045em; text-transform:uppercase; color:var(--white); border-bottom:1px solid var(--line); padding-bottom:14px; margin-bottom:14px; }
+  body { font-family:'Montserrat',sans-serif; background:var(--floor); color:var(--text); padding:20px 24px; font-size:11px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .eyebrow { font-size:8px; font-weight:700; letter-spacing:0.26em; text-transform:uppercase; color:var(--dim); margin-bottom:5px; }
+  h1 { font-size:26px; font-weight:900; letter-spacing:-0.04em; text-transform:uppercase; color:var(--white); border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:10px; }
   h1 span { color:var(--moss); }
-  .stats { display:flex; gap:0; margin-bottom:22px; border:1px solid var(--line); }
-  .stat { flex:1; padding:10px 14px; border-right:1px solid var(--line); }
+  .stats { display:flex; gap:0; margin-bottom:16px; border:1px solid var(--line); }
+  .stat { flex:1; padding:8px 12px; border-right:1px solid var(--line); }
   .stat:last-child { border-right:none; }
-  .stat-label { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.14em; color:var(--faint); }
-  .stat-val { font-size:20px; font-weight:800; color:var(--white); margin-top:2px; }
-  .section-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.16em; color:var(--faint); margin-bottom:10px; }
-  /* Matrix */
-  table.mx { border-collapse:collapse; }
-  .hc { font-size:7px; font-weight:800; color:var(--dim); text-transform:uppercase; letter-spacing:0.06em; writing-mode:vertical-rl; transform:rotate(180deg); height:55px; padding:0 2px 5px; vertical-align:bottom; white-space:nowrap; }
-  .wl { font-size:7px; color:var(--faint); font-weight:700; text-transform:uppercase; letter-spacing:0.07em; padding-right:7px; width:26px; white-space:nowrap; vertical-align:middle; }
-  .mc { width:13px; height:11px; border:1.5px solid var(--floor); }
-  .legend { display:flex; align-items:center; gap:5px; margin-top:10px; font-size:9px; color:var(--faint); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
-  .lc { width:11px; height:11px; display:inline-block; }
-  .footer { margin-top:18px; font-size:9px; color:var(--faint); text-align:right; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; border-top:1px solid var(--line); padding-top:10px; }
-  @media print { body { padding:12px 16px; } @page { margin:10mm; size:A4 portrait; } }
+  .stat-label { font-size:7px; font-weight:700; text-transform:uppercase; letter-spacing:0.14em; color:var(--faint); }
+  .stat-val { font-size:18px; font-weight:800; color:var(--white); margin-top:2px; }
+  .section-label { font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:0.16em; color:var(--faint); margin-bottom:8px; }
+  /* Matrix table */
+  table.mx { border-collapse:collapse; width:100%; table-layout:fixed; }
+  .mh { font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; color:var(--dim); text-align:center; padding-bottom:5px; }
+  .hl { width:88px; font-size:7px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:var(--white); padding-right:8px; vertical-align:top; padding-top:4px; line-height:1.3; }
+  .hn { font-size:6px; font-weight:600; color:var(--moss); letter-spacing:0.04em; display:block; margin-top:2px; }
+  .mc { padding:3px 2px; vertical-align:top; border-left:1px solid var(--floor); }
+  .mg { display:grid; grid-template-columns:repeat(7, 1fr); gap:1px; }
+  .ds { aspect-ratio:1; }
+  .ds.e { background:transparent; }
+  .ds.y { background:var(--moss); }
+  .ds.n { background:var(--canopy); }
+  /* Row divider */
+  tr { border-top:2px solid var(--floor); }
+  .legend { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:8px; color:var(--faint); font-weight:600; letter-spacing:0.08em; text-transform:uppercase; }
+  .lc { width:10px; height:10px; display:inline-block; }
+  .footer { margin-top:12px; font-size:8px; color:var(--faint); text-align:right; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; border-top:1px solid var(--line); padding-top:8px; }
+  @media print { body { padding:10px 14px; } @page { margin:8mm; size:A4 landscape; } }
 </style>
 </head>
 <body>
@@ -103,27 +101,27 @@ function openYearPDF(activeNames, allNames, year) {
 <h1>MAR<span>·</span>OS <span style="font-weight:300;font-size:0.5em;letter-spacing:0;color:var(--dim)">${year} Habit Tracker</span></h1>
 
 <div class="stats">
-  <div class="stat"><div class="stat-label">Habits tracked</div><div class="stat-val">${allNames.length}</div></div>
+  <div class="stat"><div class="stat-label">Habits</div><div class="stat-val">${allNames.length}</div></div>
   <div class="stat"><div class="stat-label">Days logged</div><div class="stat-val">${totalDays}</div></div>
   <div class="stat"><div class="stat-label">Perfect days</div><div class="stat-val">${completeDays}</div></div>
   <div class="stat"><div class="stat-label">Avg completion</div><div class="stat-val">${avgPct}%</div></div>
 </div>
 
-<p class="section-label">52 weeks × ${allNames.length} habits · shade = weekly completion rate</p>
+<p class="section-label">${allNames.length} habits × 12 months · each square = one day</p>
 <table class="mx">
   <thead>
     <tr>
-      <th class="wl"></th>
-      ${allNames.map((n) => `<th class="hc">${n}</th>`).join("")}
+      <th class="hl" style="color:var(--faint);font-weight:700"></th>
+      ${MONTHS.map((m) => `<th class="mh">${m}</th>`).join("")}
     </tr>
   </thead>
-  <tbody>${weekRows}</tbody>
+  <tbody>${matrixRows}</tbody>
 </table>
 
 <div class="legend">
-  <span>0 days</span>
-  ${["#232E21","#2D5627","#4A7A42","#6B9966","#A9C4A1"].map((c) => `<span class="lc" style="background:${c}"></span>`).join("")}
-  <span>7 days</span>
+  <span class="lc" style="background:var(--moss)"></span><span>Done</span>
+  <span class="lc" style="background:var(--canopy);border:1px solid var(--line)"></span><span>Missed</span>
+  <span class="lc" style="background:transparent"></span><span>No data</span>
 </div>
 
 <p class="footer">Generated ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})} · MAR OS v2</p>
