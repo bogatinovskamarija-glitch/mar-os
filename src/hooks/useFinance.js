@@ -5,6 +5,7 @@ import { FALLBACK_ENVELOPE, FALLBACK_ACCOUNTS } from "../data";
 
 const EMPTY_CANTILEVER = {
   fronted: [],
+  draganFronted: [],
   priorBalance: 0,
   ageBuckets: [
     { label: "0–30 days", amount: 0 },

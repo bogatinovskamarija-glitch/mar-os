@@ -35,8 +35,8 @@ export default function Morning({ go }) {
 
   const cancels = SUBSCRIPTIONS.filter((r) => r.verdict === "cancel");
   const cancelSave = cancels.reduce((a, r) => a + r.amount, 0);
-  const liquid = accounts.filter((a) => a.balance > 0).reduce((a, x) => a + x.balance, 0);
-  const cardDebt = accounts.filter((a) => a.balance < 0).reduce((a, x) => a + x.balance, 0);
+  const liquid = accounts.filter((a) => a.kind !== "credit" && a.balance > 0).reduce((a, x) => a + x.balance, 0);
+  const cardSpend = accounts.filter((a) => a.kind === "credit").reduce((a, x) => a + x.balance, 0);
 
   const overs = envelope.filter((e) => e.actual > e.plan && e.plan > 0).sort((a, b) => (b.actual - b.plan) - (a.actual - a.plan));
 
@@ -58,7 +58,7 @@ export default function Morning({ go }) {
             <div>
               <div className="text-[14px] font-semibold" style={{ color: C.oxide }}>No CSV data imported yet</div>
               <div className="mt-1 text-[13px] font-light" style={{ color: C.dim }}>
-                Drop your Chase and Amex CSV files to see live financial data.
+                Drop your Rocket Money export CSV to see live financial data.
               </div>
             </div>
             <Btn onClick={() => setShowImport(true)}>
@@ -83,12 +83,12 @@ export default function Morning({ go }) {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4">
             {accounts.map((a, i) => {
               const credit = a.kind === "credit";
-              const used = credit && a.limit ? Math.abs(a.balance) / a.limit : 0;
+              const used = credit && a.limit ? a.balance / a.limit : 0;
               return (
                 <div key={a.name} className="px-5 py-[18px]"
                   style={{ borderRight: i < accounts.length - 1 ? `1px solid ${C.lineSoft}` : "none", borderBottom: `1px solid ${C.lineSoft}` }}>
-                  <Label>{a.kind}</Label>
-                  <div className="mt-2.5"><Fig size={27} color={a.balance < 0 ? C.oxide : C.text}>{money(a.balance)}</Fig></div>
+                  <Label>{credit ? "this month" : a.kind}</Label>
+                  <div className="mt-2.5"><Fig size={27} color={credit ? (a.balance > 0 ? C.oxide : C.faint) : (a.balance < 0 ? C.oxide : C.text)}>{money(a.balance)}</Fig></div>
                   <div className="mt-2 truncate text-[12px]" style={{ color: C.faint }}>{a.name}</div>
                   {credit && a.limit && (
                     <div className="mt-3 h-[3px] w-full" style={{ background: C.lineSoft }}>
@@ -104,7 +104,8 @@ export default function Morning({ go }) {
           <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2 px-5 py-4"
             style={{ background: "rgba(44, 55, 42, 0.5)", backdropFilter: "blur(8px)" }}>
             <span className="text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: C.faint }}>Net position</span>
-            <Fig size={22} color={liquid + cardDebt >= 0 ? C.text : C.oxide}>{money(liquid + cardDebt)}</Fig>
+            <Fig size={22} color={liquid > 0 ? C.text : C.faint}>{liquid > 0 ? money(liquid) : "—"}</Fig>
+            <span className="text-[13px] font-light" style={{ color: C.dim }}>{money(cardSpend)} charged on cards this month</span>
             {floatBalance > 0 && (
               <span className="text-[13px] font-light" style={{ color: C.dim }}>
                 and {money(floatBalance)} of it is really the trucking company's

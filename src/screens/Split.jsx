@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { C, money, num } from "../theme";
-import { Label, Fig, Panel, Chip, Th, Td, rise } from "../kit";
+import { Label, Fig, Panel, Th, Td, rise } from "../kit";
 import { useFinance } from "../hooks/useFinance";
 
 function todayMeta() {
@@ -22,30 +22,54 @@ export default function Split() {
 
   return (
     <div className="space-y-7">
-      {/* Household ledger — manual / placeholder */}
+      {/* Dragan expenses — live from CSV "Dragan" category */}
       <motion.div variants={rise} initial="hidden" animate="show" custom={0}>
-        <Panel title={`Household ledger · ${meta.month}`}
-          action={<Chip tone="review">Manual tracking</Chip>}>
-          <div className="py-10 text-center px-6">
-            <div className="text-[16px] font-semibold" style={{ color: C.dim }}>Add your shared expenses here</div>
-            <p className="mt-3 max-w-[46ch] mx-auto text-[14px] font-light leading-[1.6]" style={{ color: C.faint }}>
-              Track shared expenses with Dragan — rent, groceries, Canelo's vet bills. When you have a recurring list, add it to this screen in <code className="text-[12px]" style={{ color: C.moss }}>src/screens/Split.jsx</code> as a static array, or use the notes app until you're ready.
-            </p>
-            <div className="mt-8 grid grid-cols-2 gap-5 max-w-[360px] mx-auto">
-              {[
-                { l: "You paid out", v: "—", t: C.text },
-                { l: "Dragan paid out", v: "—", t: C.text },
-                { l: "Your true share", v: "—", t: C.dim },
-                { l: "Settle-up", v: "—", t: C.faint },
-              ].map((s) => (
-                <div key={s.l} className="px-4 py-4 text-left"
-                  style={{ background: "rgba(44, 55, 42, 0.5)", backdropFilter: "blur(8px)", border: `1px solid rgba(60, 75, 55, 0.4)` }}>
-                  <Label>{s.l}</Label>
-                  <div className="mt-2"><Fig size={22} color={s.t}>{s.v}</Fig></div>
-                </div>
-              ))}
+        <Panel title={`Dragan expenses · ${meta.month}`} flush>
+          {!hasData && (
+            <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>
+              Import CSV from F-01 to see Dragan expenses.
             </div>
-          </div>
+          )}
+          {hasData && cantilever.draganFronted.length === 0 && (
+            <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>
+              No expenses categorised as "Dragan" found this month in Rocket Money.
+            </div>
+          )}
+          {hasData && cantilever.draganFronted.length > 0 && (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[500px] border-collapse text-left">
+                  <thead>
+                    <tr>
+                      <Th w="50%">Item</Th>
+                      <Th>Date</Th>
+                      <Th right>Amount fronted</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cantilever.draganFronted.map((r) => (
+                      <tr key={r.item + r.date} className="transition-colors hover:bg-[#2C372A]">
+                        <Td>{r.item}</Td>
+                        <Td color={C.faint}><span style={num}>{r.date}</span></Td>
+                        <Td right color={C.oxide}><span style={{ ...num, fontWeight: 600 }}>{money(r.amount)}</span></Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "rgba(44, 55, 42, 0.5)" }}>
+                      <Td color={C.text}><span className="text-[12px] font-bold uppercase tracking-[0.16em]">Total this month</span></Td>
+                      <Td>{" "}</Td>
+                      <Td right color={C.oxide}>
+                        <span style={{ ...num, fontWeight: 700 }}>
+                          {money(cantilever.draganFronted.reduce((a, r) => a + r.amount, 0))}
+                        </span>
+                      </Td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
+          )}
         </Panel>
       </motion.div>
 

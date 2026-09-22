@@ -168,6 +168,7 @@ export const financeStore = {
         account: t.account,
         category: t.category ?? null,
         trucking: t.trucking ?? false,
+        dragan: t.dragan ?? false,
       }));
       supabase.from("mar_os_finance_transactions")
         .upsert(rows, { onConflict: "user_id,date,description,amount,account" })

@@ -38,7 +38,7 @@ export async function syncDown(uid) {
     supabase.from("mar_os_focus").select("date,minutes").eq("user_id", uid).gte("date", since),
     supabase.from("mar_os_focus_sessions").select("date_label,target,done,mins,result").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
     supabase.from("mar_os_settings").select("key,value").eq("user_id", uid),
-    supabase.from("mar_os_finance_transactions").select("date,description,amount,account,category,trucking").eq("user_id", uid).order("date", { ascending: true }),
+    supabase.from("mar_os_finance_transactions").select("date,description,amount,account,category,trucking,dragan").eq("user_id", uid).order("date", { ascending: true }),
   ]);
 
   try {

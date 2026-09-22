@@ -5,22 +5,35 @@ import { C } from "../theme";
 
 export default function Login() {
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [resetSent, setResetSent] = useState(false);
 
-  const send = async (e) => {
+  const signIn = async (e) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || !password) return;
     setLoading(true);
     setError(null);
-    const { error: err } = await supabase.auth.signInWithOtp({
+    const { error: err } = await supabase.auth.signInWithPassword({
       email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: window.location.origin },
+      password,
     });
     setLoading(false);
+    if (err) setError(err.message);
+  };
+
+  const sendReset = async () => {
+    if (!email.trim()) { setError("Enter your email first."); return; }
+    setLoading(true);
+    setError(null);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      { redirectTo: window.location.origin },
+    );
+    setLoading(false);
     if (err) { setError(err.message); return; }
-    setSent(true);
+    setResetSent(true);
   };
 
   return (
@@ -48,26 +61,26 @@ export default function Login() {
           </p>
         </div>
 
-        {sent ? (
+        {resetSent ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
             <div className="border px-5 py-5" style={{ borderColor: "#2E3D2C", background: "#232E21" }}>
               <p className="text-[14px] font-semibold" style={{ color: "#A9C4A1" }}>Check your email</p>
               <p className="mt-2 text-[13px] font-light leading-[1.6]" style={{ color: "#8FA88A" }}>
-                A sign-in link was sent to <span style={{ color: "#F0EDE6" }}>{email}</span>.<br />
-                Click it to open MAR OS on this device.
+                A password-reset link was sent to <span style={{ color: "#F0EDE6" }}>{email}</span>.<br />
+                Click it, set your password, then come back to sign in.
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setSent(false)}
+              onClick={() => setResetSent(false)}
               className="text-[12px] font-bold uppercase tracking-[0.14em] cursor-pointer"
               style={{ color: "#5A7058" }}
             >
-              Use a different email
+              Back to sign in
             </button>
           </motion.div>
         ) : (
-          <form onSubmit={send} className="space-y-4">
+          <form onSubmit={signIn} className="space-y-4">
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-[0.16em] mb-2" style={{ color: "#5A7058" }}>
                 Email
@@ -91,17 +104,49 @@ export default function Login() {
               />
             </div>
 
+            <div>
+              <label className="block text-[11px] font-bold uppercase tracking-[0.16em] mb-2" style={{ color: "#5A7058" }}>
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full border bg-transparent px-4 py-3 text-[15px] font-light outline-none"
+                style={{
+                  borderColor: "#2E3D2C",
+                  color: "#F0EDE6",
+                  background: "#232E21",
+                  fontFamily: "Montserrat, sans-serif",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#A9C4A1")}
+                onBlur={(e) => (e.target.style.borderColor = "#2E3D2C")}
+              />
+            </div>
+
             {error && (
               <p className="text-[12px]" style={{ color: "#C4806A" }}>{error}</p>
             )}
 
             <button
               type="submit"
-              disabled={loading || !email.trim()}
+              disabled={loading || !email.trim() || !password}
               className="w-full px-6 py-3 text-[12px] font-bold uppercase tracking-[0.16em] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: C.moss ?? "#A9C4A1", color: "#1A2118" }}
             >
-              {loading ? "Sending…" : "Send sign-in link"}
+              {loading ? "Signing in…" : "Sign in"}
+            </button>
+
+            <button
+              type="button"
+              onClick={sendReset}
+              disabled={loading}
+              className="w-full text-[11px] font-bold uppercase tracking-[0.14em] cursor-pointer disabled:opacity-40 pt-1"
+              style={{ color: "#5A7058" }}
+            >
+              Forgot password? Send reset link
             </button>
           </form>
         )}
