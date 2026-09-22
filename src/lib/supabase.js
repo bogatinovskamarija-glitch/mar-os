@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 
 // Publishable key — safe to include in client-side code
 export const supabase = createClient(
-  "https://nkkakjmsyreebcbmwddj.supabase.co",
-  "sb_publishable_ZX94YoYyvs5yyOhfbV6djg_gvwnj2fc"
+  "https://btmxozmpzpxisrczlkop.supabase.co",
+  "sb_publishable_bv2-JYq4lde4PzvbIBBcIQ_etwTkf1z"
 );
 
 // Module-level UID so storage.js fire-and-forget writes can use it synchronously
