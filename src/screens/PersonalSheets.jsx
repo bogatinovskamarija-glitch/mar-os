@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { Play, Pause, RotateCcw, Save, Search, Copy, CalendarDays, ChevronRight } from "lucide-react";
 import { C, num } from "../theme";
 import { Label, Fig, Panel, Chip, Btn } from "../kit";
-import { focusPresets, journalMoods, focusIntention, journalPromptCategories, HABIT_NAMES, HABIT_NOTES } from "../data";
+import { focusPresets, journalMoods, focusIntention, journalPromptCategories } from "../data";
+import { habitsStore } from "../lib/storage";
 import { useHabits } from "../hooks/useHabits";
 import { useGoals } from "../hooks/useGoals";
 import { usePriorities } from "../hooks/usePriorities";
@@ -11,26 +12,69 @@ import { useJournal } from "../hooks/useJournal";
 
 // ── Habits ───────────────────────────────────────────────────────────────────
 
+function exportHabitsCSV(allNames, prefix, label) {
+  const entries = habitsStore.allEntries(prefix);
+  if (!entries.length) { alert("No data found for that period."); return; }
+  const header = ["Date", ...allNames, "Total"].join(",");
+  const rows = entries.map(({ date, data }) => {
+    const vals = allNames.map((n) => (data?.[n] ? 1 : 0));
+    const total = vals.reduce((a, v) => a + v, 0);
+    return [date, ...vals, total].join(",");
+  });
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `habits-${label}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function Habits() {
-  const { weekData, toggle } = useHabits();
+  const { weekData, toggle, names, notes, retiredNames, addHabit, retireHabit, restoreHabit } = useHabits();
+  const [managing, setManaging] = useState(false);
+  const [newHabit, setNewHabit] = useState("");
+
+  const allKnownNames = [...names, ...retiredNames];
+  const now = new Date();
+  const yearPrefix = now.getFullYear().toString();
+  const monthPrefix = now.toISOString().slice(0, 7);
+  const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  const handleAdd = () => {
+    if (newHabit.trim()) { addHabit(newHabit); setNewHabit(""); }
+  };
 
   return (
     <div className="space-y-7">
-      <Panel title="Seven-day habit grid" action={<Chip tone="keep">No friction</Chip>} flush>
+      <Panel
+        title="Seven-day habit grid"
+        action={
+          <div className="flex items-center gap-2">
+            <Btn tone="secondary" onClick={() => setManaging((v) => !v)}>
+              {managing ? "Done" : "Manage"}
+            </Btn>
+          </div>
+        }
+        flush
+      >
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] border-collapse">
             <thead>
               <tr>
                 <th className="px-5 py-4 text-left text-[12px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.faint }}>Habit</th>
-                {weekData.map((day, i) => (
+                {weekData.map((day) => (
                   <th key={day.key} className="px-2 py-4 text-center text-[12px] font-semibold uppercase tracking-[0.12em]"
                     style={{ color: day.isToday ? C.moss : C.faint }}>{day.label}</th>
                 ))}
-                <th className="px-5 py-4 text-right text-[12px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.faint }}>Note</th>
+                <th className="px-5 py-4 text-right text-[12px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.faint }}>
+                  {managing ? "Action" : "Note"}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {HABIT_NAMES.map((name) => (
+              {names.map((name) => (
                 <tr key={name} style={{ borderTop: `1px solid ${C.lineSoft}` }}>
                   <td className="px-5 py-[16px] text-[15px]" style={{ color: C.text }}>{name}</td>
                   {weekData.map((day) => {
@@ -47,12 +91,73 @@ export function Habits() {
                       </td>
                     );
                   })}
-                  <td className="px-5 py-[16px] text-right text-[12px]" style={{ color: C.faint }}>{HABIT_NOTES[name] ?? ""}</td>
+                  <td className="px-5 py-[16px] text-right text-[12px]">
+                    {managing
+                      ? <button type="button" onClick={() => retireHabit(name)}
+                          className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.1em] hover:underline"
+                          style={{ color: C.oxide }}>Retire</button>
+                      : <span style={{ color: C.faint }}>{notes[name] ?? ""}</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {managing && (
+          <div className="border-t px-5 py-5 space-y-5" style={{ borderColor: C.line }}>
+            <div>
+              <Label>Add a new habit</Label>
+              <div className="mt-2.5 flex gap-2">
+                <input
+                  type="text"
+                  value={newHabit}
+                  onChange={(e) => setNewHabit(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                  placeholder="e.g. Cold shower, Read 20 pages"
+                  className="flex-1 border bg-transparent px-4 py-3 text-[15px] font-light outline-none"
+                  style={{ borderColor: C.moss, color: C.text }}
+                />
+                <Btn onClick={handleAdd}>Add</Btn>
+              </div>
+            </div>
+            {retiredNames.length > 0 && (
+              <div>
+                <Label>Retired habits</Label>
+                <div className="mt-2 space-y-1">
+                  {retiredNames.map((name) => (
+                    <div key={name} className="flex items-center justify-between gap-4 py-1.5">
+                      <span className="text-[14px] line-through" style={{ color: C.ghost }}>{name}</span>
+                      <button type="button" onClick={() => restoreHabit(name)}
+                        className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.1em]"
+                        style={{ color: C.moss }}>Restore</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Export habit data">
+        <p className="text-[14px] font-light mb-5" style={{ color: C.dim }}>
+          Downloads a CSV with a row per day and a column per habit — ready for Excel, Numbers, or Google Sheets.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Btn tone="secondary" onClick={() => exportHabitsCSV(allKnownNames, monthPrefix, monthLabel)}>
+            {monthLabel}
+          </Btn>
+          <Btn tone="secondary" onClick={() => exportHabitsCSV(allKnownNames, yearPrefix, yearPrefix)}>
+            All of {yearPrefix}
+          </Btn>
+          <Btn tone="secondary" onClick={() => exportHabitsCSV(allKnownNames, null, "all-time")}>
+            All time
+          </Btn>
+        </div>
+        <p className="mt-4 text-[12px] font-light" style={{ color: C.faint }}>
+          Retired habits appear as columns in exports so historical data stays complete.
+        </p>
       </Panel>
     </div>
   );

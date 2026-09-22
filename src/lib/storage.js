@@ -16,7 +16,7 @@ export const habitsStore = {
   streak(numHabits) {
     let count = 0;
     const d = new Date();
-    d.setDate(d.getDate() - 1); // start from yesterday; today may be in progress
+    d.setDate(d.getDate() - 1);
     d.setHours(0, 0, 0, 0);
     for (let i = 0; i < 365; i++) {
       const key = d.toISOString().slice(0, 10);
@@ -28,6 +28,30 @@ export const habitsStore = {
       d.setDate(d.getDate() - 1);
     }
     return count;
+  },
+  // Returns all stored entries, optionally filtered to a YYYY or YYYY-MM prefix
+  allEntries(prefix) {
+    return safe(() => {
+      return Object.keys(localStorage)
+        .filter((k) => k.startsWith("habits:") && k !== "habits:config" &&
+          (!prefix || k.replace("habits:", "").startsWith(prefix)))
+        .sort()
+        .map((k) => ({ date: k.replace("habits:", ""), data: safe(() => JSON.parse(localStorage.getItem(k)), {}) }));
+    }, []);
+  },
+};
+
+// Habits config: which habits are active vs retired
+// Shape: { active: string[], retired: string[] }
+export const habitsConfigStore = {
+  get(defaultNames) {
+    return safe(
+      () => JSON.parse(localStorage.getItem("habits:config")),
+      { active: defaultNames ?? [], retired: [] }
+    );
+  },
+  set(config) {
+    safe(() => localStorage.setItem("habits:config", JSON.stringify(config)));
   },
 };
 
