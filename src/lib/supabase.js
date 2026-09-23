@@ -40,7 +40,7 @@ export async function syncDown(uid) {
     supabase.from("mar_os_settings").select("key,value").eq("user_id", uid),
     supabase.from("mar_os_transactions")
       .select("tx_key,date,month,year,account,account_type,merchant,name,description,amount,signed,flow,category,entity,entity_basis,shared,rm_category,flag")
-      .eq("user_id", uid).order("date", { ascending: true }),
+      .eq("user_id", uid).order("date", { ascending: true }).limit(10000),
   ]);
 
   try {
