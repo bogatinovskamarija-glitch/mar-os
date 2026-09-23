@@ -174,9 +174,10 @@ export async function fetchLearningPages() {
   );
   if (!res.ok) throw new Error(`ClickUp ${res.status}: fetchLearningPages`);
   const data = await res.json();
-  console.log("[fetchLearningPages] raw response keys:", Object.keys(data), data);
-  // v3 API may wrap under different keys; normalize to array
-  const raw = data.pages ?? data.data?.pages ?? data.data ?? (Array.isArray(data) ? data : []);
+  // v3 API may wrap under different keys; try all known shapes
+  const raw = data.pages ?? data.data?.pages ?? (Array.isArray(data.data) ? data.data : null) ?? (Array.isArray(data) ? data : null);
+  // If nothing found, expose raw keys as a thrown error so the UI can display them
+  if (!raw) throw new Error(`Unknown response shape: ${JSON.stringify(Object.keys(data))}`);
   // Normalize camelCase field names from v3 API
   return raw.map((p) => ({
     ...p,
