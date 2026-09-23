@@ -24,6 +24,28 @@ export function initAuth(onSession) {
   });
 }
 
+// Fetches all rows from mar_os_transactions using pagination to bypass the
+// server-side max-rows cap (default 1000 on Supabase free tier).
+async function fetchAllTransactions(uid) {
+  const PAGE = 1000;
+  const cols = "tx_key,date,month,year,account,account_type,merchant,name,description,amount,signed,flow,category,entity,entity_basis,shared,rm_category,flag";
+  let all = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("mar_os_transactions")
+      .select(cols)
+      .eq("user_id", uid)
+      .order("date", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
+
 // ── Pull everything from Supabase into localStorage ───────────────────────────
 export async function syncDown(uid) {
   if (!uid) return;
@@ -31,17 +53,15 @@ export async function syncDown(uid) {
   ago.setFullYear(ago.getFullYear() - 1);
   const since = ago.toISOString().slice(0, 10);
 
-  const [cfg, entries, journal, focus, sessions, settings, finance] = await Promise.all([
+  const [cfg, entries, journal, focus, sessions, settings] = await Promise.all([
     supabase.from("mar_os_habits_config").select("active,retired").eq("user_id", uid).maybeSingle(),
     supabase.from("mar_os_habit_entries").select("date,data").eq("user_id", uid).gte("date", since),
     supabase.from("mar_os_journal_entries").select("date,text,mood,saved_at").eq("user_id", uid).gte("date", since),
     supabase.from("mar_os_focus").select("date,minutes").eq("user_id", uid).gte("date", since),
     supabase.from("mar_os_focus_sessions").select("date_label,target,done,mins,result").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
     supabase.from("mar_os_settings").select("key,value").eq("user_id", uid),
-    supabase.from("mar_os_transactions")
-      .select("tx_key,date,month,year,account,account_type,merchant,name,description,amount,signed,flow,category,entity,entity_basis,shared,rm_category,flag")
-      .eq("user_id", uid).order("date", { ascending: true }).limit(10000),
   ]);
+  const txns = await fetchAllTransactions(uid);
 
   try {
     if (cfg.data) {
@@ -66,7 +86,6 @@ export async function syncDown(uid) {
         localStorage.setItem("mar-os-playlists", JSON.stringify(s.value));
       }
     }
-    const txns = finance.data ?? [];
     if (txns.length > 0) {
       const state = buildFinanceState(txns);
       localStorage.setItem("finance:data", JSON.stringify(state));
