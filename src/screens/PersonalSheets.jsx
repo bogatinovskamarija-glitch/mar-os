@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Play, Pause, RotateCcw, Save, Search, Copy, CalendarDays, ChevronRight } from "lucide-react";
+import { Play, Pause, RotateCcw, Save, Search, Copy, CalendarDays, ChevronRight, Download } from "lucide-react";
 import { C, num } from "../theme";
 import { Label, Fig, Panel, Chip, Btn } from "../kit";
 import { focusPresets, journalMoods, focusIntention, journalPromptCategories } from "../data";
@@ -501,6 +501,119 @@ function PlaylistsPanel() {
   );
 }
 
+// ── Focus helpers ─────────────────────────────────────────────────────────────
+
+const CONTEXTS = ["Firm", "Exam", "Trucking", "Admin", "Home"];
+const CTX_COLOR = { Firm:"#A9C4A1", Exam:"#D4A574", Trucking:"#E8A98E", Admin:"#B8C8E0", Home:"#C4B8A8" };
+
+function parseSessionDate(s) {
+  if (s.date_iso) return new Date(s.date_iso);
+  const now = new Date();
+  const d = new Date(`${s.date} ${now.getFullYear()}`);
+  if (isNaN(d.getTime())) return now;
+  if (d > now) d.setFullYear(d.getFullYear() - 1);
+  return d;
+}
+
+function isoWeekKey(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const y = d.getFullYear();
+  const w1 = new Date(y, 0, 4);
+  const wk = 1 + Math.round(((d - w1) / 86400000 - 3 + (w1.getDay() + 6) % 7) / 7);
+  return { key: `${y}-W${String(wk).padStart(2,"0")}`, week: wk, year: y };
+}
+
+function buildWeekGroups(sessions) {
+  const map = {};
+  for (const s of sessions) {
+    const dt = parseSessionDate(s);
+    const { key, week, year } = isoWeekKey(dt);
+    if (!map[key]) map[key] = { key, week, year, totalMins: 0, sessions: 0, byContext: {} };
+    map[key].totalMins += s.mins ?? 0;
+    map[key].sessions++;
+    const ctx = s.context ?? "Other";
+    map[key].byContext[ctx] = (map[key].byContext[ctx] ?? 0) + (s.mins ?? 0);
+  }
+  return Object.values(map).sort((a, b) => b.key.localeCompare(a.key));
+}
+
+function fmtMins(m) {
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60), mm = m % 60;
+  return mm > 0 ? `${h}h ${mm}m` : `${h}h`;
+}
+
+function openFocusPDF(weeks) {
+  const totalThisYear = weeks.filter((w) => w.year === new Date().getFullYear())
+    .reduce((s, w) => s + w.totalMins, 0);
+  const rows = weeks.map((w) => {
+    const ctxBars = CONTEXTS
+      .filter((c) => w.byContext[c])
+      .map((c) => `<span class="ctx" style="color:${CTX_COLOR[c]}">${c} ${fmtMins(w.byContext[c])}</span>`)
+      .join(" · ");
+    return `<tr>
+      <td class="week">Week ${w.week} · ${w.year}</td>
+      <td class="total">${fmtMins(w.totalMins)}</td>
+      <td class="sessions">${w.sessions} session${w.sessions !== 1 ? "s" : ""}</td>
+      <td class="ctx-col">${ctxBars || "—"}</td>
+    </tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>MAR OS · Focus Sessions</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+  :root{--floor:#1A2118;--canopy:#2C372A;--moss:#A9C4A1;--text:#EDF2EA;--dim:#C6D8C1;--faint:#A8BFA3;--ghost:#8FA88A;--line:#3C4B37;--white:#F5F2EC;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Montserrat',sans-serif;background:var(--floor);color:var(--text);padding:28px 32px;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .eyebrow{font-size:9px;font-weight:700;letter-spacing:0.26em;text-transform:uppercase;color:var(--ghost);margin-bottom:6px;}
+  h1{font-size:32px;font-weight:900;letter-spacing:-0.04em;text-transform:uppercase;color:var(--white);border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px;}
+  h1 span{color:var(--moss);}
+  .summary{display:flex;gap:0;margin-bottom:20px;border:1px solid var(--line);}
+  .s-cell{flex:1;padding:10px 14px;border-right:1px solid var(--line);}
+  .s-cell:last-child{border-right:none;}
+  .s-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--ghost);}
+  .s-val{font-size:22px;font-weight:800;color:var(--white);margin-top:3px;font-variant-numeric:tabular-nums;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{text-align:left;padding:8px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--ghost);background:#232e21;border-bottom:1px solid var(--line);}
+  th.r{text-align:right;}
+  td{padding:10px 12px;border-bottom:1px solid #253024;}
+  td.week{font-weight:700;color:var(--white);white-space:nowrap;}
+  td.total{font-weight:800;color:var(--moss);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  td.sessions{text-align:right;color:var(--ghost);font-size:11px;white-space:nowrap;}
+  td.ctx-col{color:var(--dim);font-size:11px;}
+  .ctx{margin-right:6px;}
+  @media print{@page{margin:0.6in;}body{padding:0;}}
+</style>
+</head>
+<body>
+<p class="eyebrow">MAR OS · Personal operating system</p>
+<h1>Focus<span>·</span>Sessions</h1>
+<div class="summary">
+  <div class="s-cell"><div class="s-label">Total focused this year</div><div class="s-val">${fmtMins(totalThisYear)}</div></div>
+  <div class="s-cell"><div class="s-label">Sessions this year</div><div class="s-val">${weeks.filter(w=>w.year===new Date().getFullYear()).reduce((s,w)=>s+w.sessions,0)}</div></div>
+  <div class="s-cell"><div class="s-label">Weeks tracked</div><div class="s-val">${weeks.length}</div></div>
+</div>
+<table>
+  <thead>
+    <tr><th>Week</th><th class="r">Total</th><th class="r">Sessions</th><th>By context</th></tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>
+</body>
+</html>`;
+
+  const w = window.open("", "_blank", "width=860,height=720");
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 500);
+}
+
 // ── Focus ────────────────────────────────────────────────────────────────────
 
 export function Focus() {
@@ -520,7 +633,7 @@ export function Focus() {
       if (s <= 1) {
         setRun(false);
         setStarted(false);
-        logSession({ target, mins: focusPresets[preset].minutes, done: doneMeans || "Completed", date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }) });
+        logSession({ target, context: ctx, mins: focusPresets[preset].minutes, done: doneMeans || "Completed" });
         return 0;
       }
       return s - 1;
@@ -639,7 +752,7 @@ export function Focus() {
                     <div className="w-[62px] shrink-0"><Chip tone="keep">{s.mins}m</Chip></div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[14px] font-medium" style={{ color: C.text }}>{s.target}</div>
-                      <div className="mt-1 truncate text-[12px]" style={{ color: C.faint }}>{s.date} · {s.done}</div>
+                      <div className="mt-1 truncate text-[12px]" style={{ color: C.faint }}>{s.date}{s.context ? ` · ${s.context}` : ""} · {s.done}</div>
                     </div>
                   </div>
                 ))}
@@ -648,7 +761,76 @@ export function Focus() {
           )}
         </div>
       </div>
+
+      {/* Weekly sessions summary */}
+      <WeeklySessionsPanel sessions={sessions} />
     </div>
+  );
+}
+
+// ── Weekly sessions panel ─────────────────────────────────────────────────────
+
+function WeeklySessionsPanel({ sessions }) {
+  const weeks = useMemo(() => buildWeekGroups(sessions), [sessions]);
+  const thisYear = new Date().getFullYear();
+  const totalYearMins = weeks.filter((w) => w.year === thisYear).reduce((s, w) => s + w.totalMins, 0);
+
+  if (sessions.length === 0) return null;
+
+  return (
+    <Panel title="Focus sessions by week"
+      action={
+        <button type="button" onClick={() => openFocusPDF(weeks)}
+          className="inline-flex h-[34px] cursor-pointer items-center gap-2 border px-[13px] text-[11px] font-semibold uppercase tracking-[0.12em] transition-opacity hover:opacity-80"
+          style={{ background: "rgba(44,55,42,0.5)", color: C.text, borderColor: "rgba(60,75,55,0.5)" }}>
+          <Download size={13} /> PDF
+        </button>
+      }
+      flush>
+      {/* Year strip */}
+      <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2 px-5 py-4"
+        style={{ background: "rgba(44,55,42,0.5)", borderBottom: `1px solid ${C.lineSoft}` }}>
+        <span className="text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: C.faint }}>{thisYear}</span>
+        <span className="text-[14px]" style={{ ...num, color: C.text }}>
+          <span style={{ color: C.moss, fontWeight: 700 }}>{fmtMins(totalYearMins)}</span> focused · {weeks.filter(w=>w.year===thisYear).reduce((s,w)=>s+w.sessions,0)} sessions
+        </span>
+      </div>
+
+      {/* Week rows */}
+      {weeks.slice(0, 12).map((w, i) => {
+        const maxCtxMins = Math.max(1, ...Object.values(w.byContext));
+        return (
+          <div key={w.key} className="px-5 py-[15px]"
+            style={{ borderBottom: i < weeks.length - 1 ? `1px solid ${C.lineSoft}` : "none" }}>
+            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+              <span className="text-[13px] font-bold" style={{ ...num, color: C.ghost, minWidth: 100 }}>
+                Week {w.week} · {w.year}
+              </span>
+              <span className="text-[18px] font-bold" style={{ ...num, color: C.moss }}>{fmtMins(w.totalMins)}</span>
+              <span className="text-[12px]" style={{ color: C.faint }}>{w.sessions} session{w.sessions !== 1 ? "s" : ""}</span>
+            </div>
+            {/* Context bars */}
+            {Object.keys(w.byContext).length > 0 && (
+              <div className="mt-3 space-y-[6px]">
+                {CONTEXTS.filter((c) => w.byContext[c]).map((c) => {
+                  const pct = Math.round(w.byContext[c] / w.totalMins * 100);
+                  return (
+                    <div key={c} className="flex items-center gap-3">
+                      <span className="w-[68px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.1em]"
+                        style={{ color: CTX_COLOR[c] }}>{c}</span>
+                      <div className="h-[4px] flex-1" style={{ background: C.lineSoft }}>
+                        <div className="h-full transition-all" style={{ width: `${pct}%`, background: CTX_COLOR[c], opacity: 0.75 }} />
+                      </div>
+                      <span className="w-[34px] shrink-0 text-right text-[11px]" style={{ ...num, color: C.faint }}>{fmtMins(w.byContext[c])}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </Panel>
   );
 }
 

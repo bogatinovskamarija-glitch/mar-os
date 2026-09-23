@@ -84,13 +84,14 @@ export const sessionsStore = {
     return safe(() => JSON.parse(localStorage.getItem("focus:sessions") ?? "[]"), []);
   },
   push(session) {
-    const dateLabel = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    const entry = { ...session, date: dateLabel };
+    const now = new Date();
+    const dateLabel = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const date_iso = now.toISOString().slice(0, 10);
+    const entry = { ...session, date: dateLabel, date_iso };
     const all = sessionsStore.get();
     all.unshift(entry);
     const trimmed = all.slice(0, 50);
     safe(() => localStorage.setItem("focus:sessions", JSON.stringify(trimmed)));
-    // Write to Supabase (INSERT only — sessions are append-only)
     const uid = getUid();
     if (uid) {
       supabase.from("mar_os_focus_sessions")
@@ -149,7 +150,12 @@ export const journalStore = {
 // ── Finance ──────────────────────────────────────────────────────────────────
 export const financeStore = {
   get() {
-    return safe(() => JSON.parse(localStorage.getItem("finance:data")), null);
+    return safe(() => {
+      const d = JSON.parse(localStorage.getItem("finance:data"));
+      // Validate new shape — old builds stored cantilever/trend, not inflow/accounts
+      if (!d || !Array.isArray(d.inflow)) return null;
+      return d;
+    }, null);
   },
   set(data) {
     safe(() => localStorage.setItem("finance:data", JSON.stringify(data)));

@@ -648,7 +648,7 @@ export function buildFinanceState(txns) {
       companies:  trkCompanies,
       monthly:    drift.map((d) => ({
         month: d.month, fronted: r2(d.fronted_trucking), repaid: r2(d.repaid_trucking),
-        net: r2(d.fronted_trucking - d.repaid_trucking), running_balance: d.trucking_balance,
+        net: r2(d.fronted_trucking - d.repaid_trucking), balance: d.trucking_balance,
       })),
     },
     dragan: {
@@ -660,9 +660,9 @@ export function buildFinanceState(txns) {
       repaid12:       r2(drgRepaid12),
       transactions:   drgTxnsThisMonth,
       monthly:        drift.map((d) => ({
-        month: d.month, direct_fronted: r2(d.fronted_dragan),
-        dragan_share: r2(d.dragan_share), repaid: r2(d.repaid_dragan),
-        running_balance: d.dragan_balance,
+        month: d.month, direct: r2(d.fronted_dragan),
+        share: r2(d.dragan_share), repaid: r2(d.repaid_dragan),
+        balance: d.dragan_balance,
       })),
     },
     drift,

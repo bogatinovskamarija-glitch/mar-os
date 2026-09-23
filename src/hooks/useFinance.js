@@ -63,22 +63,22 @@ export function useFinance() {
 
   return {
     // F-01 Overview
-    inflow:          d.inflow,
-    accounts:        d.accounts,
-    thisMonth:       d.thisMonth,
-    truckingBalance: d.truckingBalance,
-    draganBalance:   d.draganBalance,
+    inflow:          d.inflow          ?? [],
+    accounts:        d.accounts        ?? [],
+    thisMonth:       d.thisMonth       ?? EMPTY_STATE.thisMonth,
+    truckingBalance: d.truckingBalance ?? 0,
+    draganBalance:   d.draganBalance   ?? 0,
     // F-02 Month
-    envelope:        d.envelope,
+    envelope:        d.envelope        ?? [],
     // F-03 Recurring
-    recurring:       d.recurring,
+    recurring:       d.recurring       ?? [],
     // F-04 Split
-    trucking:        d.trucking,
-    dragan:          d.dragan,
+    trucking:        d.trucking        ?? EMPTY_STATE.trucking,
+    dragan:          d.dragan          ?? EMPTY_STATE.dragan,
     // F-05 Drift
-    drift:           d.drift,
+    drift:           d.drift           ?? [],
     // all
-    transactions:    d.transactions,
+    transactions:    d.transactions    ?? [],
     hasData:         !!data,
     importedAt:      financeStore.importedAt(),
     importing, importError, importFiles, clearData,

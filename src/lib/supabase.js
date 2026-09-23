@@ -73,4 +73,5 @@ export async function syncDown(uid) {
       localStorage.setItem("finance:importedAt", new Date().toISOString());
     }
   } catch {}
+  try { window.dispatchEvent(new Event("syncdown-complete")); } catch {}
 }

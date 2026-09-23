@@ -43,8 +43,7 @@ function Dashboard() {
 
   const { done: habitDone, total: habitTotal } = useHabits();
   const { todayMins: focusMins, goalMin: focusGoal } = useFocus();
-  const { accounts } = useFinance();
-  const liquid = accounts.filter((a) => a.balance > 0).reduce((a, x) => a + x.balance, 0);
+  const { truckingBalance, hasData } = useFinance();
 
   const Body = page === "finance"
     ? FINANCE_BODY[finance]
@@ -113,13 +112,13 @@ function Dashboard() {
                 <div className="mt-1 text-[12px]" style={{ color: C.faint }}>of {focusGoal}m goal</div>
               </div>
               <div>
-                <Label>Liquid</Label>
+                <Label>Truck float</Label>
                 <div className="mt-2">
-                  <Fig size={29} color={liquid > 0 ? C.text : C.ghost}>
-                    {liquid > 0 ? money(liquid) : "—"}
+                  <Fig size={29} color={hasData && truckingBalance > 0 ? C.oxide : C.ghost}>
+                    {hasData ? money(truckingBalance) : "—"}
                   </Fig>
                 </div>
-                <div className="mt-1 text-[12px]" style={{ color: C.faint }}>in accounts</div>
+                <div className="mt-1 text-[12px]" style={{ color: C.faint }}>running balance</div>
               </div>
             </div>
           </div>

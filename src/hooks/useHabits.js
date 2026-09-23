@@ -25,7 +25,12 @@ export function useHabits() {
       setChecks(habitsStore.get(today) ?? emptyChecks(fresh.active));
     };
     _subscribers.add(refresh);
-    return () => _subscribers.delete(refresh);
+    // Re-read after Supabase syncDown writes to localStorage
+    window.addEventListener("syncdown-complete", refresh);
+    return () => {
+      _subscribers.delete(refresh);
+      window.removeEventListener("syncdown-complete", refresh);
+    };
   }, [today]);
 
   const toggle = useCallback((habitName) => {
