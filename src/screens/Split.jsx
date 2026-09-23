@@ -43,7 +43,7 @@ export default function Split() {
                   {[
                     { l: "Lifetime fronted", v: money(trucking.lifetime.fronted) },
                     { l: "Lifetime repaid",  v: money(trucking.lifetime.repaid) },
-                    { l: "Net lifetime",     v: money(trucking.lifetime.fronted - trucking.lifetime.repaid), c: trucking.lifetime.fronted > trucking.lifetime.repaid ? C.oxide : C.moss },
+                    { l: "Net lifetime",     v: money(trucking.lifetime.repaid + trucking.lifetime.fronted), c: (trucking.lifetime.repaid + trucking.lifetime.fronted) < 0 ? C.oxide : C.moss },
                   ].map((s) => (
                     <div key={s.l} className="px-5 py-5">
                       <Label>{s.l}</Label>
