@@ -13,6 +13,7 @@ import Recurring from "./screens/Recurring";
 import Split from "./screens/Split";
 import Drift from "./screens/Drift";
 import CreditCards from "./screens/CreditCards";
+import SalaryTracker from "./screens/SalaryTracker";
 import { meta } from "./data";
 import { useHabits } from "./hooks/useHabits";
 import { useFocus } from "./hooks/useFocus";
@@ -34,8 +35,9 @@ const FINANCE = [
   { id: "split",       no: "F-04", label: "The Split" },
   { id: "drift",       no: "F-05", label: "The Drift" },
   { id: "creditcards", no: "F-06", label: "Credit Cards" },
+  { id: "salary",      no: "F-07", label: "Salary Owed" },
 ];
-const FINANCE_BODY = { morning: Morning, month: Month, recurring: Recurring, split: Split, drift: Drift, creditcards: CreditCards };
+const FINANCE_BODY = { morning: Morning, month: Month, recurring: Recurring, split: Split, drift: Drift, creditcards: CreditCards, salary: SalaryTracker };
 
 function Dashboard() {
   const { session } = useAuth();
@@ -49,7 +51,12 @@ function Dashboard() {
     ? FINANCE_BODY[finance]
     : { home: Home, habits: Habits, goals: Goals, focus: Focus, journal: Journal }[page];
   const active = PRIMARY.find((p) => p.id === page);
-  const go = (id) => { setPage(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const go = (id) => {
+    const isFinance = FINANCE.some((f) => f.id === id);
+    if (isFinance) { setPage("finance"); setFinance(id); }
+    else setPage(id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const today = new Date();
   const todayStr = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });

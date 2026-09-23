@@ -6,6 +6,7 @@ import { C, money, num } from "../theme";
 import { Label, Fig, Panel, Chip, Btn, rise } from "../kit";
 import { useFinance } from "../hooks/useFinance";
 import FinanceImport from "../components/FinanceImport";
+import { salaryStore } from "../lib/salaryStore";
 
 function todayMeta() {
   const d = new Date();
@@ -23,6 +24,7 @@ export default function Morning({ go }) {
     envelope, recurring, hasData, importedAt, importFiles, importing, importError, clearData,
   } = useFinance();
   const meta = todayMeta();
+  const [salaryOwed]  = useState(() => salaryStore.computeOwed());
 
   const inTotal    = inflow.reduce((a, r) => a + r.amount, 0);
   const tm         = thisMonth;
@@ -146,15 +148,18 @@ export default function Morning({ go }) {
       </motion.div>
 
       {/* Balances strip */}
-      {hasData && (truckingBalance !== 0 || draganBalance !== 0 || cardInterest > 0) && (
+      {hasData && (truckingBalance !== 0 || draganBalance !== 0 || cardInterest > 0 || salaryOwed.total > 0) && (
         <motion.div variants={rise} initial="hidden" animate="show" custom={0.5}>
-          <div className="grid gap-px sm:grid-cols-3" style={{ background: C.line, border: `1px solid ${C.line}` }}>
+          <div className="grid gap-px sm:grid-cols-2 lg:grid-cols-4" style={{ background: C.line, border: `1px solid ${C.line}` }}>
             {[
               { l: "Trucking float balance", v: money(Math.abs(truckingBalance)), t: truckingBalance > 0 ? C.oxide : C.moss,
                 s: truckingBalance > 0 ? `They still owe you ${money(truckingBalance)}` : truckingBalance < 0 ? `You've collected ${money(Math.abs(truckingBalance))} more than fronted` : "Square", to: "split" },
               { l: "Dragan balance", v: money(Math.abs(draganBalance)), t: draganBalance > 0 ? C.oxide : C.moss,
                 s: draganBalance > 0 ? `He owes you ${money(draganBalance)}` : draganBalance < 0 ? `He overpaid by ${money(Math.abs(draganBalance))} — you owe him` : "Square", to: "split" },
-              { l: "Card interest / mo", v: cardInterest > 0 ? money(cardInterest) : "—", t: cardInterest > 0 ? C.oxide : C.ghost, s: cardInterest > 0 ? "Largest silent subscription" : "No active interest detected", to: "drift" },
+              { l: "Card interest / mo", v: cardInterest > 0 ? money(cardInterest) : "—", t: cardInterest > 0 ? C.oxide : C.ghost,
+                s: cardInterest > 0 ? "Largest silent subscription" : "No active interest detected", to: "drift" },
+              { l: "Salary owed by company", v: money(salaryOwed.total), t: salaryOwed.total > 0 ? C.oxide : C.moss,
+                s: salaryOwed.total > 0 ? `${salaryOwed.unpaid} weeks unpaid × ${money(salaryOwed.rate)}` : "All weeks marked as paid", to: "salary" },
             ].map((s) => (
               <button key={s.l} type="button" onClick={() => go(s.to)}
                 className="cursor-pointer px-5 py-5 text-left transition-colors hover:bg-[#2C372A]"
