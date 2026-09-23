@@ -21,6 +21,15 @@ export const SHARED_CATS = new Set([
   "Dining & Going Out","Entertainment",
 ]);
 
+export const EXPENSE_CATS = [
+  "Housing (rent)","Utilities & Phone","Groceries & Household","Dining & Going Out",
+  "Shopping","Car, Gas & Transport","Travel","Health & Medical","Personal Care",
+  "Pets","Subscriptions & Software","Education & Licensure","Entertainment",
+  "Gifts & Donations","Insurance","Student Loans","Bogat A&D / AREna (business)",
+  "Home & Garden","Cash Withdrawals","Taxes & Government","Legal & Professional",
+  "Investing","Uncategorized",
+];
+
 // ── Account label map (classify.py §ACCOUNT_LABEL) ─────────────────────────
 const ACCOUNT_LABEL = {
   "marija bogatinovska":                    "BofA Checking ·0901",

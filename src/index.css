@@ -16,3 +16,16 @@ body {
 textarea, input {
   font-family: "Montserrat", sans-serif;
 }
+
+@media print {
+  body { background: #fff !important; color: #111 !important; }
+  [data-no-print] { display: none !important; }
+  .print\:hidden { display: none !important; }
+  header, nav { display: none !important; }
+  canvas { display: none !important; }
+  main { padding: 0 !important; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #ddd; padding: 5px 8px; font-size: 11px; }
+  [data-print-panel] { break-inside: avoid; margin-bottom: 16px; }
+  @page { margin: 1.8cm; }
+}

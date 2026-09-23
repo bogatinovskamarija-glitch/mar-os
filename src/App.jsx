@@ -12,6 +12,7 @@ import Month from "./screens/Month";
 import Recurring from "./screens/Recurring";
 import Split from "./screens/Split";
 import Drift from "./screens/Drift";
+import CreditCards from "./screens/CreditCards";
 import { meta } from "./data";
 import { useHabits } from "./hooks/useHabits";
 import { useFocus } from "./hooks/useFocus";
@@ -27,13 +28,14 @@ const PRIMARY = [
   { id: "journal", no: "P-05", label: "Journal", sub: "Private page", icon: BookOpen },
 ];
 const FINANCE = [
-  { id: "morning", no: "F-01", label: "Overview" },
-  { id: "month", no: "F-02", label: "The Month" },
-  { id: "recurring", no: "F-03", label: "Recurring" },
-  { id: "split", no: "F-04", label: "The Split" },
-  { id: "drift", no: "F-05", label: "The Drift" },
+  { id: "morning",     no: "F-01", label: "Overview" },
+  { id: "month",       no: "F-02", label: "The Month" },
+  { id: "recurring",   no: "F-03", label: "Recurring" },
+  { id: "split",       no: "F-04", label: "The Split" },
+  { id: "drift",       no: "F-05", label: "The Drift" },
+  { id: "creditcards", no: "F-06", label: "Credit Cards" },
 ];
-const FINANCE_BODY = { morning: Morning, month: Month, recurring: Recurring, split: Split, drift: Drift };
+const FINANCE_BODY = { morning: Morning, month: Month, recurring: Recurring, split: Split, drift: Drift, creditcards: CreditCards };
 
 function Dashboard() {
   const { session } = useAuth();

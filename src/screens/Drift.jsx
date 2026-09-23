@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Printer } from "lucide-react";
 import { C, money, num } from "../theme";
 import { Label, Panel, Seg, rise } from "../kit";
 import { useFinance } from "../hooks/useFinance";
@@ -73,6 +74,22 @@ export default function Drift() {
 
   const shown = drift.slice().reverse();
 
+  // Column totals across all shown months
+  const totals = (() => {
+    if (metric === "Balances") {
+      // Balances are running totals — show latest values (first row = most recent)
+      const latest = shown[0];
+      if (!latest) return null;
+      return [latest.trucking_balance, latest.dragan_balance, latest.trucking_balance + latest.dragan_balance];
+    }
+    const sums = shown.reduce((acc, d) => {
+      const cells = rowData(d);
+      cells.forEach((v, i) => { acc[i] = (acc[i] ?? 0) + (v ?? 0); });
+      return acc;
+    }, {});
+    return Object.values(sums);
+  })();
+
   return (
     <div className="space-y-7">
       {/* Bar chart */}
@@ -140,8 +157,14 @@ export default function Drift() {
 
       {/* Table */}
       <motion.div variants={rise} initial="hidden" animate="show" custom={1}>
-        <Panel title="Monthly breakdown" flush>
-          <div className="overflow-x-auto">
+        <Panel title="Monthly breakdown" action={
+          <button data-no-print type="button" onClick={() => window.print()}
+            className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] cursor-pointer opacity-50 hover:opacity-100 transition-opacity"
+            style={{ color: C.faint }}>
+            <Printer size={13} /> Print
+          </button>
+        } flush>
+          <div className="overflow-x-auto" data-print-panel>
             <table className="w-full">
               <thead>
                 <tr style={{ background: "rgba(44,55,42,0.5)" }}>
@@ -150,6 +173,18 @@ export default function Drift() {
                       style={{ color: C.faint, borderBottom: `1px solid ${C.lineSoft}`, textAlign: i === 0 ? "left" : "right" }}>{h}</th>
                   ))}
                 </tr>
+                {totals && (
+                  <tr style={{ background: "rgba(59,82,55,0.35)", borderBottom: `2px solid ${C.moss}` }}>
+                    <td className="px-5 py-[11px] text-[11px] font-bold uppercase tracking-[0.14em]"
+                      style={{ color: C.moss }}>{metric === "Balances" ? "Current" : "All-time total"}</td>
+                    {totals.map((val, ci) => (
+                      <td key={ci} className="px-5 py-[11px] text-right text-[13px] font-bold"
+                        style={{ ...num, color: val < 0 ? C.oxide : C.moss }}>
+                        {money(val)}
+                      </td>
+                    ))}
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {shown.map((d) => {

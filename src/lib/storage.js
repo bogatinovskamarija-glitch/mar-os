@@ -147,6 +147,16 @@ export const journalStore = {
   },
 };
 
+// ── Budget ───────────────────────────────────────────────────────────────────
+export const budgetStore = {
+  getTemplate() {
+    return safe(() => JSON.parse(localStorage.getItem("budget:template") ?? "{}"), {});
+  },
+  setTemplate(data) {
+    safe(() => localStorage.setItem("budget:template", JSON.stringify(data)));
+  },
+};
+
 // ── Finance ──────────────────────────────────────────────────────────────────
 export const financeStore = {
   get() {
