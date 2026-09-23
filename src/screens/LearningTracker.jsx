@@ -8,11 +8,16 @@ import { fetchLearningPages } from "../lib/clickup";
 const KEY = "learning:status";
 
 const CAT_ICONS = {
-  "Business":            "💼",
-  "Personal Development":"🧠",
-  "Novels":              "📖",
-  "Technology":          "🛰️",
-  "Memoirs":             "✍️",
+  "Business":                    "💼",
+  "Personal Development":        "🧠",
+  "Novels":                      "📖",
+  "Technology":                  "🛰️",
+  "Memoirs":                     "✍️",
+  "Movies":                      "🎬",
+  "Cooking":                     "🍳",
+  "Health and Lifestyle":        "💪",
+  "Parenthood and Relationships":"👨‍👩‍👧",
+  "Productivity":                "⚡",
 };
 
 const STATUS_OPTS = ["Reading", "Queue", "Done"];
@@ -24,8 +29,7 @@ function loadStatus() { return safe(() => JSON.parse(localStorage.getItem(KEY) ?
 function saveStatus(s) { safe(() => localStorage.setItem(KEY, JSON.stringify(s))); }
 
 const LEARNING_HUB_ROOT = "8ccvrfk-28773";
-const CATEGORY_IDS = ["8ccvrfk-28753", "8ccvrfk-28613", "8ccvrfk-30353", "8ccvrfk-46673", "8ccvrfk-30393"];
-const SKIP_IDS = [LEARNING_HUB_ROOT, "8ccvrfk-44073"]; // root + untitled
+const SKIP_IDS = [LEARNING_HUB_ROOT, "8ccvrfk-44073"]; // root + untitled blank page
 
 export default function LearningTracker() {
   const [pages,    setPages]    = useState([]);
@@ -70,13 +74,17 @@ export default function LearningTracker() {
   }, [pages]);
 
   const currentlyReading = useMemo(
-    () => pages.filter((p) => status[p.id] === "Reading" && !SKIP_IDS.includes(p.id)),
+    () => pages.filter((p) => status[p.id] === "Reading" && !SKIP_IDS.includes(p.id) && p.parent_page_id !== null),
     [pages, status]
   );
 
-  const doneCount = pages.filter((p) => status[p.id] === "Done").length;
+  const categoryIds = useMemo(
+    () => new Set(pages.filter((p) => p.parent_page_id === LEARNING_HUB_ROOT).map((p) => p.id)),
+    [pages]
+  );
+  const doneCount  = pages.filter((p) => status[p.id] === "Done").length;
   const queueCount = pages.filter((p) => status[p.id] === "Queue").length;
-  const totalItems = pages.filter((p) => !SKIP_IDS.includes(p.id) && !CATEGORY_IDS.includes(p.id)).length;
+  const totalItems = pages.filter((p) => !SKIP_IDS.includes(p.id) && !categoryIds.has(p.id) && p.parent_page_id !== null).length;
 
   const clickUpUrl = (pageId) =>
     `https://app.clickup.com/9006080499/docs/8ccvrfk-25833/${pageId}`;

@@ -165,6 +165,20 @@ export async function writeHabitDay(dateKey, habitData) {
 }
 
 // ── Learning Hub (reads all pages for tracker widget) ────────────────────────
+function flattenPages(nodes, defaultParentId = null) {
+  const result = [];
+  for (const p of (nodes ?? [])) {
+    result.push({
+      id:             p.id,
+      name:           p.name ?? "",
+      parent_page_id: p.parent_page_id ?? p.parentPageId ?? defaultParentId,
+      order_index:    p.order_index    ?? p.orderIndex    ?? 0,
+    });
+    if (p.pages?.length) result.push(...flattenPages(p.pages, p.id));
+  }
+  return result;
+}
+
 export async function fetchLearningPages() {
   const t = tok();
   if (!t) throw new Error("VITE_CLICKUP_TOKEN not set");
@@ -174,16 +188,9 @@ export async function fetchLearningPages() {
   );
   if (!res.ok) throw new Error(`ClickUp ${res.status}: fetchLearningPages`);
   const data = await res.json();
-  // v3 API may wrap under different keys; try all known shapes
-  const raw = data.pages ?? data.data?.pages ?? (Array.isArray(data.data) ? data.data : null) ?? (Array.isArray(data) ? data : null);
-  // If nothing found, expose raw keys as a thrown error so the UI can display them
-  if (!raw) throw new Error(`Unknown response shape: ${JSON.stringify(Object.keys(data))}`);
-  // Normalize camelCase field names from v3 API
-  return raw.map((p) => ({
-    ...p,
-    parent_page_id: p.parent_page_id ?? p.parentPageId ?? null,
-    order_index:    p.order_index    ?? p.orderIndex    ?? 0,
-  }));
+  // v3 API returns a nested tree; pick the top-level array and flatten
+  const topLevel = data.pages ?? (Array.isArray(data.data) ? data.data : data.data?.pages) ?? (Array.isArray(data) ? data : []);
+  return flattenPages(topLevel);
 }
 
 // ── Weekly Review (writes personal reflection to Weekly Reviews doc) ──────────
