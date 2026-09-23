@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home as HomeIcon, CheckSquare, Target, WalletCards, Timer, BookOpen, LogOut } from "lucide-react";
+import { Home as HomeIcon, CheckSquare, Target, WalletCards, Timer, BookOpen, LogOut, TrendingUp } from "lucide-react";
 import { C, num } from "./theme";
 import { Label, Fig, Plot } from "./kit";
 import Backdrop from "./components/Backdrop";
@@ -14,6 +14,9 @@ import Split from "./screens/Split";
 import Drift from "./screens/Drift";
 import CreditCards from "./screens/CreditCards";
 import SalaryTracker from "./screens/SalaryTracker";
+import WeeklyReview from "./screens/WeeklyReview";
+import WinsLog from "./screens/WinsLog";
+import LearningTracker from "./screens/LearningTracker";
 import { meta } from "./data";
 import { useHabits } from "./hooks/useHabits";
 import { useFocus } from "./hooks/useFocus";
@@ -21,12 +24,13 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { supabase } from "./lib/supabase";
 
 const PRIMARY = [
-  { id: "home", no: "P-00", label: "Home", sub: "The daily glance", icon: HomeIcon },
-  { id: "habits", no: "P-01", label: "Habits", sub: "Small promises", icon: CheckSquare },
-  { id: "goals", no: "P-02", label: "Goals", sub: "ClickUp priorities", icon: Target },
-  { id: "finance", no: "P-03", label: "Financials", sub: "Money + float", icon: WalletCards },
-  { id: "focus", no: "P-04", label: "Focus", sub: "Timer + sound", icon: Timer },
-  { id: "journal", no: "P-05", label: "Journal", sub: "Private page", icon: BookOpen },
+  { id: "home",    no: "P-00", label: "Home",       sub: "The daily glance",    icon: HomeIcon },
+  { id: "habits",  no: "P-01", label: "Habits",     sub: "Small promises",      icon: CheckSquare },
+  { id: "goals",   no: "P-02", label: "Goals",      sub: "ClickUp priorities",  icon: Target },
+  { id: "finance", no: "P-03", label: "Financials", sub: "Money + float",       icon: WalletCards },
+  { id: "focus",   no: "P-04", label: "Focus",      sub: "Timer + sound",       icon: Timer },
+  { id: "journal", no: "P-05", label: "Journal",    sub: "Private page",        icon: BookOpen },
+  { id: "growth",  no: "P-06", label: "Growth",     sub: "Review + wins",       icon: TrendingUp },
 ];
 const FINANCE = [
   { id: "morning",     no: "F-01", label: "Overview" },
@@ -38,22 +42,33 @@ const FINANCE = [
   { id: "salary",      no: "F-07", label: "Salary Owed" },
 ];
 const FINANCE_BODY = { morning: Morning, month: Month, recurring: Recurring, split: Split, drift: Drift, creditcards: CreditCards, salary: SalaryTracker };
+const GROWTH = [
+  { id: "review",   no: "G-01", label: "Weekly Review" },
+  { id: "wins",     no: "G-02", label: "Wins Log" },
+  { id: "learning", no: "G-03", label: "Learning" },
+];
+const GROWTH_BODY = { review: WeeklyReview, wins: WinsLog, learning: LearningTracker };
 
 function Dashboard() {
   const { session } = useAuth();
-  const [page, setPage] = useState("home");
+  const [page,    setPage]    = useState("home");
   const [finance, setFinance] = useState("morning");
+  const [growth,  setGrowth]  = useState("review");
 
   const { done: habitDone, total: habitTotal } = useHabits();
   const { todayMins: focusMins, goalMin: focusGoal } = useFocus();
 
   const Body = page === "finance"
     ? FINANCE_BODY[finance]
-    : { home: Home, habits: Habits, goals: Goals, focus: Focus, journal: Journal }[page];
+    : page === "growth"
+      ? GROWTH_BODY[growth]
+      : { home: Home, habits: Habits, goals: Goals, focus: Focus, journal: Journal }[page];
   const active = PRIMARY.find((p) => p.id === page);
   const go = (id) => {
     const isFinance = FINANCE.some((f) => f.id === id);
-    if (isFinance) { setPage("finance"); setFinance(id); }
+    const isGrowth  = GROWTH.some((g) => g.id === id);
+    if (isFinance)      { setPage("finance"); setFinance(id); }
+    else if (isGrowth)  { setPage("growth");  setGrowth(id); }
     else setPage(id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -155,6 +170,21 @@ function Dashboard() {
                 className="cursor-pointer border-b-2 px-4 py-3 text-[12px] font-bold uppercase tracking-[0.14em]"
                 style={{ borderColor: finance === f.id ? C.moss : "transparent", color: finance === f.id ? C.white : C.faint }}>
                 {f.no} · {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {page === "growth" && (
+        <div className="relative z-20 border-b" style={{ borderColor: C.line, background: C.floor }}>
+          <div className="mx-auto flex max-w-[102rem] overflow-x-auto px-5 sm:px-9">
+            {GROWTH.map((g) => (
+              <button key={g.id}
+                onClick={() => { setGrowth(g.id); window.scrollTo({ top: 0 }); }}
+                className="cursor-pointer border-b-2 px-4 py-3 text-[12px] font-bold uppercase tracking-[0.14em]"
+                style={{ borderColor: growth === g.id ? C.moss : "transparent", color: growth === g.id ? C.white : C.faint }}>
+                {g.no} · {g.label}
               </button>
             ))}
           </div>

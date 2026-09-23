@@ -11,6 +11,8 @@ const PRIORITY_LISTS = [
 ];
 const JOURNAL_DOC_ID = "8ccvrfk-36973";
 const JOURNAL_2026_PAGE_ID = "8ccvrfk-48613";
+const LEARNING_HUB_DOC_ID = "8ccvrfk-25833";
+const WEEKLY_REVIEWS_DOC_ID = "8ccvrfk-25813";
 
 function tok() {
   return import.meta.env.VITE_CLICKUP_TOKEN ?? "";
@@ -159,6 +161,53 @@ export async function writeHabitDay(dateKey, habitData) {
     }
   } catch {
     // ClickUp sync is best-effort; localStorage is source of truth
+  }
+}
+
+// ── Learning Hub (reads all pages for tracker widget) ────────────────────────
+export async function fetchLearningPages() {
+  const t = tok();
+  if (!t) throw new Error("VITE_CLICKUP_TOKEN not set");
+  const res = await fetch(
+    `${BASE_V3}/workspaces/${WORKSPACE}/docs/${LEARNING_HUB_DOC_ID}/pages`,
+    { headers: { Authorization: t } }
+  );
+  if (!res.ok) throw new Error(`ClickUp ${res.status}: fetchLearningPages`);
+  const data = await res.json();
+  return data.pages ?? [];
+}
+
+// ── Weekly Review (writes personal reflection to Weekly Reviews doc) ──────────
+export async function writeWeeklyReview(weekLabel, wins, improve, focus) {
+  const t = tok();
+  if (!t) return { ok: false, error: "No API token" };
+  try {
+    const md = [
+      `## Wins this week`,
+      wins.filter(Boolean).map((w) => `- ${w}`).join("\n"),
+      ``,
+      `## What I want to improve`,
+      improve,
+      ``,
+      `## My focus next week`,
+      focus,
+    ].join("\n");
+
+    const res = await fetch(
+      `${BASE_V3}/workspaces/${WORKSPACE}/docs/${WEEKLY_REVIEWS_DOC_ID}/pages`,
+      {
+        method: "POST",
+        headers: { Authorization: t, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: `Weekly Review: ${weekLabel}`, content: md, content_format: "text/md" }),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      return { ok: false, error: `ClickUp ${res.status}: ${err}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
   }
 }
 
