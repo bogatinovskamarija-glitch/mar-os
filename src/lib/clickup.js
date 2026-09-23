@@ -113,6 +113,25 @@ export async function fetchPriorities() {
     });
 }
 
+// ── Active tasks for Focus picker ────────────────────────────────────────────
+export async function fetchActiveTasks() {
+  const params = PRIORITY_LISTS.map((id) => `list_ids[]=${id}`).join("&");
+  const data = await cu(
+    `/team/${WORKSPACE}/task?${params}&include_closed=false&page=0&order_by=due_date&subtasks=false`
+  );
+  return (data.tasks ?? [])
+    .filter((t) => !["canceled", "complete"].includes(t.status?.status?.toLowerCase()))
+    .slice(0, 50)
+    .map((t) => ({
+      id: t.id,
+      title: t.name,
+      list: t.list?.name ?? "ClickUp",
+      due: t.due_date
+        ? new Date(parseInt(t.due_date)).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        : null,
+    }));
+}
+
 // ── Habit Log (one ClickUp task per day, description = JSON) ────────────────
 export async function fetchHabitDay(dateKey) {
   try {

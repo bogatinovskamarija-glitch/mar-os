@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Check, Play, ArrowUpRight, Clock3, Sun, Cloud, CloudRain, Snowflake, CloudLightning, Wind } from "lucide-react";
-import { C, money } from "../theme";
+import { C } from "../theme";
 import { Label, Fig, Panel, Chip, Btn, rise } from "../kit";
 import { useHabits } from "../hooks/useHabits";
 import { usePriorities } from "../hooks/usePriorities";
 import { useGoals } from "../hooks/useGoals";
 import { useFocus } from "../hooks/useFocus";
-import { useFinance } from "../hooks/useFinance";
 import { useWeather } from "../hooks/useWeather";
 
 function WeatherIcon({ code, ...props }) {
@@ -26,8 +25,6 @@ export default function Home({ go }) {
   const { priorities, loading: pLoading } = usePriorities();
   const { goals, loading: gLoading } = useGoals();
   const { todayMins, goalMin } = useFocus();
-  const { truckingBalance, draganBalance, hasData } = useFinance();
-
   const { weather, loading: wLoading, error: wError } = useWeather();
 
   const today = new Date();
@@ -143,71 +140,29 @@ export default function Home({ go }) {
         </motion.div>
       </div>
 
-      {/* Goals + Money */}
-      <div className="grid gap-7 lg:grid-cols-2">
-        <motion.div variants={rise} initial="hidden" animate="show" custom={3}>
-          <Panel title="Life dashboard">
-            {gLoading
-              ? <div className="py-4 text-[13px]" style={{ color: C.faint }}>Loading goals…</div>
-              : goals.length === 0
-                ? <div className="py-4 text-[13px]" style={{ color: C.faint }}>No goals synced yet. Add goals to ClickUp list.</div>
-                : <div className="space-y-5">
-                    {goals.slice(0, 4).map((g) => (
-                      <div key={g.id}>
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="text-[14px]" style={{ color: C.text }}>{g.title}</span>
-                          <span className="text-[12px]" style={{ color: C.faint }}>{g.progress}%</span>
-                        </div>
-                        <div className="mt-2 h-[4px]" style={{ background: C.lineSoft }}>
-                          <div className="h-full" style={{ width: `${g.progress}%`, background: g.area === "Finance" ? C.oxide : C.moss }} />
-                        </div>
+      {/* Goals */}
+      <motion.div variants={rise} initial="hidden" animate="show" custom={3}>
+        <Panel title="Life dashboard">
+          {gLoading
+            ? <div className="py-4 text-[13px]" style={{ color: C.faint }}>Loading goals…</div>
+            : goals.length === 0
+              ? <div className="py-4 text-[13px]" style={{ color: C.faint }}>No goals synced yet. Add goals to ClickUp list.</div>
+              : <div className="space-y-5">
+                  {goals.slice(0, 4).map((g) => (
+                    <div key={g.id}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="text-[14px]" style={{ color: C.text }}>{g.title}</span>
+                        <span className="text-[12px]" style={{ color: C.faint }}>{g.progress}%</span>
                       </div>
-                    ))}
-                  </div>}
-            <Btn tone="secondary" className="mt-6" onClick={() => go("goals")}>Open goals</Btn>
-          </Panel>
-        </motion.div>
-
-        <motion.div variants={rise} initial="hidden" animate="show" custom={4}>
-          <Panel title="Money at a glance">
-            <div className="flex items-end justify-between">
-              <div>
-                <Label>Trucking float</Label>
-                <div className="mt-3">
-                  <Fig size={36} color={truckingBalance > 0 ? C.oxide : C.ghost}>
-                    {hasData ? money(truckingBalance) : "—"}
-                  </Fig>
-                </div>
-              </div>
-              <button type="button" onClick={() => go("finance")}
-                className="cursor-pointer text-[12px] font-bold uppercase tracking-[0.14em]"
-                style={{ color: C.moss }}>
-                Financials <ArrowUpRight size={14} className="inline" />
-              </button>
-            </div>
-            <div className="mt-7 grid grid-cols-2 gap-5">
-              <div>
-                <Label>Dragan balance</Label>
-                <div className="mt-2">
-                  <Fig size={22} color={draganBalance > 0 ? C.oxide : C.ghost}>
-                    {hasData ? money(draganBalance) : "—"}
-                  </Fig>
-                </div>
-              </div>
-              <div>
-                <Label>Data status</Label>
-                <div className="mt-2">
-                  {hasData
-                    ? <Chip tone="keep">CSV imported</Chip>
-                    : <button type="button" onClick={() => go("finance")} className="cursor-pointer">
-                        <Chip tone="review">Import needed</Chip>
-                      </button>}
-                </div>
-              </div>
-            </div>
-          </Panel>
-        </motion.div>
-      </div>
+                      <div className="mt-2 h-[4px]" style={{ background: C.lineSoft }}>
+                        <div className="h-full" style={{ width: `${g.progress}%`, background: g.area === "Finance" ? C.oxide : C.moss }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>}
+          <Btn tone="secondary" className="mt-6" onClick={() => go("goals")}>Open goals</Btn>
+        </Panel>
+      </motion.div>
     </div>
   );
 }

@@ -82,14 +82,14 @@ export default function Recurring() {
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      {r.last_date && (
+                      {r.last_charge && (
                         <span className="text-[12px]" style={{ color: C.ghost }}>
-                          Last {new Date(r.last_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          Last {new Date(r.last_charge).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                         </span>
                       )}
                       <div className="text-right">
                         <div className="text-[16px] font-semibold" style={{ ...num, color: r.status === "Active" ? C.oxide : C.faint }}>
-                          {money(r.amount)}
+                          {money(r.typical_amount)}
                         </div>
                         {r.monthly_equiv && r.cadence !== "Monthly" && (
                           <div className="text-[11px]" style={{ ...num, color: C.ghost }}>

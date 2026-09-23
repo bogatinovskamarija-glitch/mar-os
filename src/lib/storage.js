@@ -152,8 +152,37 @@ export const financeStore = {
   get() {
     return safe(() => {
       const d = JSON.parse(localStorage.getItem("finance:data"));
-      // Validate new shape — old builds stored cantilever/trend, not inflow/accounts
       if (!d || !Array.isArray(d.inflow)) return null;
+      // Migrate: rebuild trucking/dragan nested objects from drift if missing
+      if (!d.trucking && Array.isArray(d.drift) && d.drift.length > 0) {
+        const last = d.drift[d.drift.length - 1];
+        d.trucking = {
+          balance: last.trucking_balance ?? d.truckingBalance ?? 0,
+          thisMonth: { fronted: 0, repaid: 0 },
+          last12: { fronted: 0, repaid: 0 },
+          lifetime: { fronted: 0, repaid: 0 },
+          companies: {},
+          monthly: d.drift.map((dm) => ({
+            month: dm.month,
+            fronted: dm.fronted_trucking ?? 0,
+            repaid: dm.repaid_trucking ?? 0,
+            net: (dm.fronted_trucking ?? 0) - (dm.repaid_trucking ?? 0),
+            balance: dm.trucking_balance ?? 0,
+          })),
+        };
+        d.dragan = {
+          balance: last.dragan_balance ?? d.draganBalance ?? 0,
+          direct_fronted: 0, dragan_share: 0, repaid: 0,
+          share12: 0, repaid12: 0, transactions: [],
+          monthly: d.drift.map((dm) => ({
+            month: dm.month,
+            direct: dm.fronted_dragan ?? 0,
+            share: dm.dragan_share ?? 0,
+            repaid: dm.repaid_dragan ?? 0,
+            balance: dm.dragan_balance ?? 0,
+          })),
+        };
+      }
       return d;
     }, null);
   },

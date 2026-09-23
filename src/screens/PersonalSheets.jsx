@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Play, Pause, RotateCcw, Save, Search, Copy, CalendarDays, ChevronRight, Download } from "lucide-react";
 import { C, num } from "../theme";
 import { Label, Fig, Panel, Chip, Btn } from "../kit";
 import { focusPresets, journalMoods, focusIntention, journalPromptCategories } from "../data";
 import { habitsStore } from "../lib/storage";
 import { supabase, getUid } from "../lib/supabase";
+import { fetchActiveTasks } from "../lib/clickup";
 import { useHabits } from "../hooks/useHabits";
 import { useGoals } from "../hooks/useGoals";
 import { usePriorities } from "../hooks/usePriorities";
@@ -626,6 +627,14 @@ export function Focus() {
   const [recovery, setRecovery] = useState(focusIntention.recoveryOptions[0]);
   const [ctx, setCtx] = useState("Firm");
   const [started, setStarted] = useState(false);
+  const [cuTasks, setCuTasks] = useState([]);
+  const [taskFilter, setTaskFilter] = useState("");
+
+  useEffect(() => {
+    fetchActiveTasks()
+      .then((tasks) => setCuTasks(tasks))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!run) return;
@@ -706,10 +715,37 @@ export function Focus() {
                       </button>
                     ))}
                   </div>
+                  {cuTasks.length > 0 && (
+                    <div>
+                      <Label>Pick from ClickUp</Label>
+                      <input
+                        type="text"
+                        value={taskFilter}
+                        onChange={(e) => setTaskFilter(e.target.value)}
+                        placeholder="Search tasks…"
+                        className="mt-2 w-full border bg-transparent px-3 py-2 text-[13px] font-light outline-none"
+                        style={{ borderColor: C.lineSoft, color: C.text }}
+                      />
+                      <div className="mt-1 max-h-[160px] overflow-y-auto border" style={{ borderColor: C.lineSoft }}>
+                        {cuTasks
+                          .filter((t) => !taskFilter || t.title.toLowerCase().includes(taskFilter.toLowerCase()))
+                          .map((t) => (
+                            <button key={t.id} type="button"
+                              onClick={() => { setTarget(t.title); setTaskFilter(""); }}
+                              className="w-full cursor-pointer px-3 py-[9px] text-left transition-colors hover:bg-[#2C372A]"
+                              style={{ background: target === t.title ? C.canopy : "transparent", borderBottom: `1px solid ${C.lineSoft}` }}>
+                              <span className="block truncate text-[13px] font-medium" style={{ color: target === t.title ? C.moss : C.text }}>{t.title}</span>
+                              <span className="text-[11px]" style={{ color: C.faint }}>{t.list}{t.due ? ` · ${t.due}` : ""}</span>
+                            </button>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <Label>One thing this block is for</Label>
                     <input type="text" value={target} onChange={(e) => setTarget(e.target.value)}
-                      placeholder="Redline A-201 through A-208 stair details"
+                      placeholder={cuTasks.length > 0 ? "Or type your own target…" : "Redline A-201 through A-208 stair details"}
                       className="mt-2.5 w-full border bg-transparent px-4 py-3 text-[15px] font-light outline-none"
                       style={{ borderColor: C.line, color: C.text }} />
                   </div>
@@ -775,8 +811,6 @@ function WeeklySessionsPanel({ sessions }) {
   const thisYear = new Date().getFullYear();
   const totalYearMins = weeks.filter((w) => w.year === thisYear).reduce((s, w) => s + w.totalMins, 0);
 
-  if (sessions.length === 0) return null;
-
   return (
     <Panel title="Focus sessions by week"
       action={
@@ -795,6 +829,12 @@ function WeeklySessionsPanel({ sessions }) {
           <span style={{ color: C.moss, fontWeight: 700 }}>{fmtMins(totalYearMins)}</span> focused · {weeks.filter(w=>w.year===thisYear).reduce((s,w)=>s+w.sessions,0)} sessions
         </span>
       </div>
+
+      {sessions.length === 0 && (
+        <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>
+          Complete a focus session to start tracking weekly totals.
+        </div>
+      )}
 
       {/* Week rows */}
       {weeks.slice(0, 12).map((w, i) => {
