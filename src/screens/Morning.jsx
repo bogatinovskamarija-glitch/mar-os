@@ -150,8 +150,10 @@ export default function Morning({ go }) {
         <motion.div variants={rise} initial="hidden" animate="show" custom={0.5}>
           <div className="grid gap-px sm:grid-cols-3" style={{ background: C.line, border: `1px solid ${C.line}` }}>
             {[
-              { l: "Trucking float balance", v: money(truckingBalance), t: truckingBalance > 0 ? C.oxide : C.moss, s: truckingBalance > 0 ? "They owe you" : "You are ahead", to: "split" },
-              { l: "Dragan balance", v: money(draganBalance), t: draganBalance > 0 ? C.oxide : C.moss, s: draganBalance > 0 ? "Direct + half of shared" : "He is ahead", to: "split" },
+              { l: "Trucking float balance", v: money(Math.abs(truckingBalance)), t: truckingBalance > 0 ? C.oxide : C.moss,
+                s: truckingBalance > 0 ? `They still owe you ${money(truckingBalance)}` : truckingBalance < 0 ? `You've collected ${money(Math.abs(truckingBalance))} more than fronted` : "Square", to: "split" },
+              { l: "Dragan balance", v: money(Math.abs(draganBalance)), t: draganBalance > 0 ? C.oxide : C.moss,
+                s: draganBalance > 0 ? `He owes you ${money(draganBalance)}` : draganBalance < 0 ? `He overpaid by ${money(Math.abs(draganBalance))} — you owe him` : "Square", to: "split" },
               { l: "Card interest / mo", v: cardInterest > 0 ? money(cardInterest) : "—", t: cardInterest > 0 ? C.oxide : C.ghost, s: cardInterest > 0 ? "Largest silent subscription" : "No active interest detected", to: "drift" },
             ].map((s) => (
               <button key={s.l} type="button" onClick={() => go(s.to)}

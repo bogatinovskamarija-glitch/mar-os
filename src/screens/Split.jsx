@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { C, money, num } from "../theme";
 import { Label, Fig, Panel, Chip, Seg, rise } from "../kit";
@@ -8,9 +8,18 @@ const TRUCK_VIEWS = ["Summary", "Monthly", "Companies"];
 const DRAG_VIEWS  = ["Summary", "Monthly", "Transactions"];
 
 export default function Split() {
-  const { trucking, dragan, hasData } = useFinance();
+  const { trucking, dragan, transactions, hasData } = useFinance();
   const [truckView, setTruckView] = useState("Summary");
   const [dragView, setDragView]   = useState("Summary");
+
+  // CC interest & fees — costs the trucking company caused by forcing you into CC debt
+  const ccCosts = useMemo(() => {
+    const interest = transactions.filter((t) => t.flow === "DEBT_COST" && t.category === "Interest charges");
+    const annual   = transactions.filter((t) => t.flow === "DEBT_COST" && t.category === "Card annual fees");
+    const late     = transactions.filter((t) => t.flow === "DEBT_COST" && t.category === "Late & returned-payment fees");
+    const sum = (arr) => arr.reduce((s, t) => s + Math.abs(t.amount), 0);
+    return { interest: sum(interest), fees: sum(annual) + sum(late), total: sum(interest) + sum(annual) + sum(late) };
+  }, [transactions]);
 
   return (
     <div className="space-y-7">
@@ -25,7 +34,8 @@ export default function Split() {
               {/* Balance hero */}
               <div className="grid gap-px sm:grid-cols-4" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
                 {[
-                  { l: "Running balance", v: money(trucking.balance), c: trucking.balance > 0 ? C.oxide : C.moss, s: trucking.balance > 0 ? "They owe you" : "Net positive" },
+                  { l: "Running balance", v: money(Math.abs(trucking.balance)), c: trucking.balance > 0 ? C.oxide : C.moss,
+                    s: trucking.balance > 0 ? `They owe you ${money(trucking.balance)}` : trucking.balance < 0 ? `You collected ${money(Math.abs(trucking.balance))} more than fronted` : "Square" },
                   { l: "This month fronted", v: money(trucking.thisMonth.fronted), c: C.oxide },
                   { l: "This month repaid", v: money(trucking.thisMonth.repaid), c: C.moss },
                   { l: "12-month fronted", v: money(trucking.last12.fronted), c: C.dim },
@@ -39,18 +49,43 @@ export default function Split() {
               </div>
 
               {truckView === "Summary" && (
-                <div className="grid gap-px sm:grid-cols-3" style={{ borderTop: "none" }}>
-                  {[
-                    { l: "Lifetime fronted", v: money(trucking.lifetime.fronted) },
-                    { l: "Lifetime repaid",  v: money(trucking.lifetime.repaid) },
-                    { l: "Net lifetime",     v: money(trucking.lifetime.repaid + trucking.lifetime.fronted), c: (trucking.lifetime.repaid + trucking.lifetime.fronted) < 0 ? C.oxide : C.moss },
-                  ].map((s) => (
-                    <div key={s.l} className="px-5 py-5">
-                      <Label>{s.l}</Label>
-                      <div className="mt-3"><Fig size={20} color={s.c ?? C.text}>{s.v}</Fig></div>
+                <>
+                  <div className="grid gap-px sm:grid-cols-3" style={{ borderTop: "none" }}>
+                    {[
+                      { l: "Lifetime fronted", v: money(trucking.lifetime.fronted) },
+                      { l: "Lifetime repaid",  v: money(trucking.lifetime.repaid) },
+                      { l: "Net lifetime",     v: money(trucking.lifetime.repaid + trucking.lifetime.fronted), c: (trucking.lifetime.repaid + trucking.lifetime.fronted) < 0 ? C.oxide : C.moss },
+                    ].map((s) => (
+                      <div key={s.l} className="px-5 py-5">
+                        <Label>{s.l}</Label>
+                        <div className="mt-3"><Fig size={20} color={s.c ?? C.text}>{s.v}</Fig></div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* CC costs panel — additional money you lost because of trucking debt */}
+                  {ccCosts.total > 0 && (
+                    <div style={{ borderTop: `1px solid ${C.lineSoft}`, background: "rgba(58,38,32,0.35)" }}>
+                      <div className="px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: C.oxide }}>
+                        Credit card costs from financing trucking — not yet included in balance above
+                      </div>
+                      <div className="grid gap-px sm:grid-cols-3" style={{ background: C.line }}>
+                        {[
+                          { l: "Interest paid (lifetime)",     v: money(ccCosts.interest), c: C.oxide },
+                          { l: "Fees paid (annual + late)",    v: money(ccCosts.fees),     c: ccCosts.fees > 0 ? C.oxide : C.ghost },
+                          { l: "Total extra cost to you",      v: money(ccCosts.total),    c: C.oxide },
+                        ].map((s) => (
+                          <div key={s.l} className="px-5 py-5" style={{ background: "rgba(36,46,34,0.7)" }}>
+                            <Label>{s.l}</Label>
+                            <div className="mt-3"><Fig size={20} color={s.c}>{s.v}</Fig></div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="px-5 py-3 text-[12px]" style={{ color: C.faint, borderTop: `1px solid ${C.lineSoft}` }}>
+                        You went into credit card debt to cover trucking expenses. This is the real cost of that — interest and fees charged to your personal accounts because of the trucking business. If you are seeking full repayment, add {money(ccCosts.total)} to the balance they owe you.
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
 
               {truckView === "Monthly" && (
@@ -118,7 +153,8 @@ export default function Split() {
               {/* Balance hero */}
               <div className="grid gap-px sm:grid-cols-4" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
                 {[
-                  { l: "Running balance", v: money(dragan.balance), c: dragan.balance > 0 ? C.oxide : C.moss, s: "Direct fronted + 50% shared" },
+                  { l: "Running balance", v: money(Math.abs(dragan.balance)), c: dragan.balance > 0 ? C.oxide : C.moss,
+                    s: dragan.balance > 0 ? `He owes you ${money(dragan.balance)}` : dragan.balance < 0 ? `He overpaid by ${money(Math.abs(dragan.balance))} — you owe him` : "Square" },
                   { l: "Direct fronted", v: money(dragan.direct_fronted), c: C.oxide },
                   { l: "His share (50%)", v: money(dragan.dragan_share), c: C.dim },
                   { l: "Repaid", v: money(dragan.repaid), c: C.moss },
