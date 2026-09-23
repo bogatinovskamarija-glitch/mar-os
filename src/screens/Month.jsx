@@ -87,8 +87,92 @@ export default function Month() {
     setEditingCat(null);
   }, [budget]);
 
+  // ── Income target editing ──────────────────────────────────────────────────
+  const [editingIncome, setEditingIncome] = useState(false);
+  const [incomeEditVal, setIncomeEditVal] = useState("");
+  const incomeTarget = budget.__income__ ?? 0;
+  const incomeActual = monthSummary.earned ?? 0;
+  const incomeDelta  = incomeActual - incomeTarget;
+
+  const commitIncomeEdit = useCallback((raw) => {
+    const n = parseFloat(raw.replace(/[$,\s]/g, ""));
+    if (!isNaN(n) && n >= 0) {
+      const updated = { ...budget, __income__: n };
+      setBudget(updated);
+      budgetStore.setTemplate(updated);
+    }
+    setEditingIncome(false);
+  }, [budget]);
+
   return (
     <div className="space-y-7">
+      {/* Income target panel */}
+      {hasData && (
+        <motion.div variants={rise} initial="hidden" animate="show" custom={-1}>
+          <Panel title="Income" flush>
+            <div className="px-5 py-3 text-[12px]" style={{ color: C.faint, borderBottom: `1px solid ${C.lineSoft}`, background: "rgba(44,55,42,0.2)" }}>
+              Set how much you expect to earn this month — salary, freelance, or any other income. Compare against what actually came in.
+            </div>
+            <div className="grid gap-px sm:grid-cols-3" style={{ background: C.line }}>
+              {/* Income target — editable */}
+              <div className="px-5 py-5" style={{ background: "rgba(36,46,34,0.7)" }}>
+                <div className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>Income target / mo</div>
+                <div className="mt-3 flex items-center gap-2">
+                  {editingIncome ? (
+                    <input
+                      autoFocus
+                      className="w-36 bg-transparent text-[22px] font-bold text-right outline-none border-b"
+                      style={{ color: C.white, borderColor: C.moss, fontFamily: "Montserrat, sans-serif" }}
+                      value={incomeEditVal}
+                      onChange={(ev) => setIncomeEditVal(ev.target.value)}
+                      onBlur={() => commitIncomeEdit(incomeEditVal)}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter") ev.target.blur();
+                        if (ev.key === "Escape") setEditingIncome(false);
+                      }}
+                    />
+                  ) : (
+                    <span
+                      onClick={() => { setEditingIncome(true); setIncomeEditVal(incomeTarget > 0 ? String(incomeTarget) : ""); }}
+                      className="text-[22px] font-bold cursor-text hover:opacity-80 transition-opacity"
+                      style={{ ...num, color: incomeTarget > 0 ? C.white : C.ghost }}>
+                      {incomeTarget > 0 ? money(incomeTarget) : <span style={{ color: C.ghost }}>Set target…</span>}
+                    </span>
+                  )}
+                  {!editingIncome && (
+                    <button type="button" onClick={() => { setEditingIncome(true); setIncomeEditVal(incomeTarget > 0 ? String(incomeTarget) : ""); }}
+                      className="opacity-40 hover:opacity-80 transition-opacity" data-no-print style={{ color: C.faint }}>
+                      <Pencil size={12} />
+                    </button>
+                  )}
+                </div>
+                <div className="mt-1 text-[11px]" style={{ color: C.ghost }}>Click to edit target</div>
+              </div>
+              {/* Actual earned */}
+              <div className="px-5 py-5" style={{ background: "rgba(36,46,34,0.7)" }}>
+                <div className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>Actual income earned</div>
+                <div className="mt-3 text-[22px] font-bold" style={{ ...num, color: incomeActual > 0 ? C.moss : C.ghost }}>
+                  {money(incomeActual)}
+                </div>
+                <div className="mt-1 text-[11px]" style={{ color: C.ghost }}>Salary, fees, and any income received</div>
+              </div>
+              {/* Delta */}
+              <div className="px-5 py-5" style={{ background: "rgba(36,46,34,0.7)" }}>
+                <div className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>
+                  {incomeTarget > 0 ? "vs target" : "Target not set"}
+                </div>
+                <div className="mt-3 text-[22px] font-bold" style={{ ...num, color: incomeTarget === 0 ? C.ghost : incomeDelta >= 0 ? C.moss : C.oxide }}>
+                  {incomeTarget === 0 ? "—" : incomeDelta >= 0 ? `+${money(incomeDelta)}` : money(incomeDelta)}
+                </div>
+                <div className="mt-1 text-[11px]" style={{ color: C.ghost }}>
+                  {incomeTarget > 0 && incomeDelta >= 0 ? "Above target — great month" : incomeTarget > 0 ? "Below target" : "Set a target to track this"}
+                </div>
+              </div>
+            </div>
+          </Panel>
+        </motion.div>
+      )}
+
       <motion.div variants={rise} initial="hidden" animate="show" custom={0}>
         <Panel title="Category envelope" action={
           <div className="flex items-center gap-3" data-no-print>
@@ -245,16 +329,23 @@ export default function Month() {
         <motion.div variants={rise} initial="hidden" animate="show" custom={1}>
           <div className="grid gap-px sm:grid-cols-3 lg:grid-cols-6" style={{ background: C.line, border: `1px solid ${C.line}` }} data-print-panel>
             {[
-              { l: "Earned",        v: money(monthSummary.earned),    c: C.moss },
-              { l: "Came back",     v: money(monthSummary.came_back), c: C.moss },
-              { l: "Personal spend",v: money(monthSummary.personal),  c: C.oxide },
-              { l: "Debt cost",     v: money(monthSummary.debt_cost), c: monthSummary.debt_cost > 0 ? C.oxide : C.ghost },
-              { l: "Fronted",       v: money((monthSummary.fronted_trucking ?? 0) + (monthSummary.fronted_dragan ?? 0)), c: (monthSummary.fronted_trucking ?? 0) + (monthSummary.fronted_dragan ?? 0) > 0 ? C.oxide : C.ghost },
-              { l: "Net cash",      v: money(monthSummary.net_cash),  c: monthSummary.net_cash >= 0 ? C.moss : C.oxide },
+              { l: "Income earned",         v: money(monthSummary.earned),    c: C.moss,
+                sub: "Salary & fees received" },
+              { l: "Repayments received",   v: money(monthSummary.came_back), c: C.moss,
+                sub: "Trucking/Dragan paid back" },
+              { l: "Personal spending",     v: money(monthSummary.personal),  c: C.oxide,
+                sub: "Your own expenses" },
+              { l: "Debt costs",            v: money(monthSummary.debt_cost), c: monthSummary.debt_cost > 0 ? C.oxide : C.ghost,
+                sub: "Interest, fees on credit cards" },
+              { l: "Fronted to others",     v: money((monthSummary.fronted_trucking ?? 0) + (monthSummary.fronted_dragan ?? 0)), c: (monthSummary.fronted_trucking ?? 0) + (monthSummary.fronted_dragan ?? 0) > 0 ? C.oxide : C.ghost,
+                sub: "Paid on behalf of trucking / Dragan" },
+              { l: "Net cash",              v: money(monthSummary.net_cash),  c: monthSummary.net_cash >= 0 ? C.moss : C.oxide,
+                sub: "All in minus all out" },
             ].map((s) => (
               <div key={s.l} className="px-5 py-5" style={{ background: "rgba(36,46,34,0.7)", backdropFilter: "blur(14px)" }}>
                 <Label>{s.l}</Label>
                 <div className="mt-3 text-[22px] font-bold" style={{ ...num, color: s.c }}>{s.v}</div>
+                {s.sub && <div className="mt-1 text-[11px]" style={{ color: C.ghost }}>{s.sub}</div>}
               </div>
             ))}
           </div>
