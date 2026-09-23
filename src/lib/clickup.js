@@ -174,7 +174,15 @@ export async function fetchLearningPages() {
   );
   if (!res.ok) throw new Error(`ClickUp ${res.status}: fetchLearningPages`);
   const data = await res.json();
-  return data.pages ?? [];
+  console.log("[fetchLearningPages] raw response keys:", Object.keys(data), data);
+  // v3 API may wrap under different keys; normalize to array
+  const raw = data.pages ?? data.data?.pages ?? data.data ?? (Array.isArray(data) ? data : []);
+  // Normalize camelCase field names from v3 API
+  return raw.map((p) => ({
+    ...p,
+    parent_page_id: p.parent_page_id ?? p.parentPageId ?? null,
+    order_index:    p.order_index    ?? p.orderIndex    ?? 0,
+  }));
 }
 
 // ── Weekly Review (writes personal reflection to Weekly Reviews doc) ──────────
