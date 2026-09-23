@@ -24,35 +24,21 @@ export function useWeather() {
 
   useEffect(() => {
     if (state.weather) return;
-    if (!navigator.geolocation) {
-      setState({ weather: null, loading: false, error: "no-geo" });
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords: { latitude: lat, longitude: lon } }) => {
-        try {
-          const [wRes, gRes] = await Promise.all([
-            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code,apparent_temperature&temperature_unit=celsius`),
-            fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&format=json`),
-          ]);
-          const wData = await wRes.json();
-          const gData = await gRes.json();
-          const data = {
-            temp: Math.round(wData.current.temperature_2m),
-            feels: Math.round(wData.current.apparent_temperature),
-            code: wData.current.weather_code,
-            desc: WMO[wData.current.weather_code] ?? "Unknown",
-            city: gData.address?.city || gData.address?.town || gData.address?.village || "Your location",
-          };
-          try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch {}
-          setState({ weather: data, loading: false, error: null });
-        } catch {
-          setState({ weather: null, loading: false, error: "fetch-failed" });
-        }
-      },
-      () => setState({ weather: null, loading: false, error: "denied" }),
-      { timeout: 8000 }
-    );
+    const lat = 26.1224, lon = -80.1373;
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,apparent_temperature&temperature_unit=celsius`)
+      .then((r) => r.json())
+      .then((wData) => {
+        const data = {
+          temp: Math.round(wData.current.temperature_2m),
+          feels: Math.round(wData.current.apparent_temperature),
+          code: wData.current.weather_code,
+          desc: WMO[wData.current.weather_code] ?? "Unknown",
+          city: "Fort Lauderdale",
+        };
+        try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch {}
+        setState({ weather: data, loading: false, error: null });
+      })
+      .catch(() => setState({ weather: null, loading: false, error: "fetch-failed" }));
   }, []);
 
   return state;

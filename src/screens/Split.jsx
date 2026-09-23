@@ -1,185 +1,219 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { C, money, num } from "../theme";
-import { Label, Fig, Panel, Th, Td, rise } from "../kit";
+import { Label, Fig, Panel, Chip, Seg, rise } from "../kit";
 import { useFinance } from "../hooks/useFinance";
 
-function todayMeta() {
-  const d = new Date();
-  return {
-    month: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-    monthShort: d.toLocaleDateString("en-US", { month: "short" }),
-  };
-}
+const TRUCK_VIEWS = ["Summary", "Monthly", "Companies"];
+const DRAG_VIEWS  = ["Summary", "Monthly", "Transactions"];
 
 export default function Split() {
-  const { cantilever, hasData } = useFinance();
-  const meta = todayMeta();
-
-  const fronted = cantilever.fronted.reduce((a, r) => a + r.amount, 0);
-  const back = cantilever.fronted.reduce((a, r) => a + r.back, 0);
-  const outstanding = cantilever.priorBalance + fronted - back;
-  const maxBucket = Math.max(...cantilever.ageBuckets.map((b) => b.amount), 1);
+  const { trucking, dragan, hasData } = useFinance();
+  const [truckView, setTruckView] = useState("Summary");
+  const [dragView, setDragView]   = useState("Summary");
 
   return (
     <div className="space-y-7">
-      {/* Dragan expenses — live from CSV "Dragan" category */}
+      {/* Trucking group */}
       <motion.div variants={rise} initial="hidden" animate="show" custom={0}>
-        <Panel title={`Dragan expenses · ${meta.month}`} flush>
+        <Panel title="Trucking group float" action={<Seg options={TRUCK_VIEWS} value={truckView} onChange={setTruckView} />} flush>
           {!hasData && (
-            <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>
-              Import CSV from F-01 to see Dragan expenses.
-            </div>
+            <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>Import CSV to see trucking balances.</div>
           )}
-          {hasData && cantilever.draganFronted.length === 0 && (
-            <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>
-              No expenses categorised as "Dragan" found this month in Rocket Money.
-            </div>
-          )}
-          {hasData && cantilever.draganFronted.length > 0 && (
+          {hasData && (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[500px] border-collapse text-left">
+              {/* Balance hero */}
+              <div className="grid gap-px sm:grid-cols-4" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
+                {[
+                  { l: "Running balance", v: money(trucking.balance), c: trucking.balance > 0 ? C.oxide : C.moss, s: trucking.balance > 0 ? "They owe you" : "Net positive" },
+                  { l: "This month fronted", v: money(trucking.thisMonth.fronted), c: C.oxide },
+                  { l: "This month repaid", v: money(trucking.thisMonth.repaid), c: C.moss },
+                  { l: "12-month fronted", v: money(trucking.last12.fronted), c: C.dim },
+                ].map((s) => (
+                  <div key={s.l} className="px-5 py-5">
+                    <Label>{s.l}</Label>
+                    <div className="mt-3"><Fig size={23} color={s.c}>{s.v}</Fig></div>
+                    {s.s && <div className="mt-2 text-[12px]" style={{ color: C.faint }}>{s.s}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {truckView === "Summary" && (
+                <div className="grid gap-px sm:grid-cols-3" style={{ borderTop: "none" }}>
+                  {[
+                    { l: "Lifetime fronted", v: money(trucking.lifetime.fronted) },
+                    { l: "Lifetime repaid",  v: money(trucking.lifetime.repaid) },
+                    { l: "Net lifetime",     v: money(trucking.lifetime.fronted - trucking.lifetime.repaid), c: trucking.lifetime.fronted > trucking.lifetime.repaid ? C.oxide : C.moss },
+                  ].map((s) => (
+                    <div key={s.l} className="px-5 py-5">
+                      <Label>{s.l}</Label>
+                      <div className="mt-3"><Fig size={20} color={s.c ?? C.text}>{s.v}</Fig></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {truckView === "Monthly" && (
+                <table className="w-full">
                   <thead>
-                    <tr>
-                      <Th w="50%">Item</Th>
-                      <Th>Date</Th>
-                      <Th right>Amount fronted</Th>
+                    <tr style={{ background: "rgba(44,55,42,0.5)" }}>
+                      {["Month", "Fronted", "Repaid", "Running balance"].map((h, i) => (
+                        <th key={h} className="px-5 py-[10px] text-[11px] font-semibold uppercase tracking-[0.14em]"
+                          style={{ color: C.faint, borderBottom: `1px solid ${C.lineSoft}`, textAlign: i > 0 ? "right" : "left" }}>{h}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {cantilever.draganFronted.map((r) => (
-                      <tr key={r.item + r.date} className="transition-colors hover:bg-[#2C372A]">
-                        <Td>{r.item}</Td>
-                        <Td color={C.faint}><span style={num}>{r.date}</span></Td>
-                        <Td right color={C.oxide}><span style={{ ...num, fontWeight: 600 }}>{money(r.amount)}</span></Td>
+                    {(trucking.monthly ?? []).slice().reverse().map((m) => (
+                      <tr key={m.month}>
+                        <td className="px-5 py-[13px] text-[13px]" style={{ color: C.text, borderBottom: `1px solid ${C.lineSoft}` }}>{m.month}</td>
+                        <td className="px-5 py-[13px] text-right text-[13px]" style={{ ...num, color: C.oxide, borderBottom: `1px solid ${C.lineSoft}` }}>{money(m.fronted)}</td>
+                        <td className="px-5 py-[13px] text-right text-[13px]" style={{ ...num, color: C.moss, borderBottom: `1px solid ${C.lineSoft}` }}>{money(m.repaid)}</td>
+                        <td className="px-5 py-[13px] text-right text-[14px] font-semibold"
+                          style={{ ...num, color: m.balance > 0 ? C.oxide : C.moss, borderBottom: `1px solid ${C.lineSoft}` }}>{money(m.balance)}</td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr style={{ background: "rgba(44, 55, 42, 0.5)" }}>
-                      <Td color={C.text}><span className="text-[12px] font-bold uppercase tracking-[0.16em]">Total this month</span></Td>
-                      <Td>{" "}</Td>
-                      <Td right color={C.oxide}>
-                        <span style={{ ...num, fontWeight: 700 }}>
-                          {money(cantilever.draganFronted.reduce((a, r) => a + r.amount, 0))}
-                        </span>
-                      </Td>
-                    </tr>
-                  </tfoot>
                 </table>
-              </div>
+              )}
+
+              {truckView === "Companies" && (
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ background: "rgba(44,55,42,0.5)" }}>
+                      {["Entity", "Fronted", "Repaid", "Net"].map((h, i) => (
+                        <th key={h} className="px-5 py-[10px] text-[11px] font-semibold uppercase tracking-[0.14em]"
+                          style={{ color: C.faint, borderBottom: `1px solid ${C.lineSoft}`, textAlign: i > 0 ? "right" : "left" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(trucking.companies ?? {}).map(([co, v]) => (
+                      <tr key={co}>
+                        <td className="px-5 py-[13px] text-[13px]" style={{ color: C.text, borderBottom: `1px solid ${C.lineSoft}` }}>{co}</td>
+                        <td className="px-5 py-[13px] text-right text-[13px]" style={{ ...num, color: C.oxide, borderBottom: `1px solid ${C.lineSoft}` }}>{money(v.fronted ?? 0)}</td>
+                        <td className="px-5 py-[13px] text-right text-[13px]" style={{ ...num, color: C.moss, borderBottom: `1px solid ${C.lineSoft}` }}>{money(v.repaid ?? 0)}</td>
+                        <td className="px-5 py-[13px] text-right text-[14px] font-semibold"
+                          style={{ ...num, color: (v.fronted - v.repaid) > 0 ? C.oxide : C.moss, borderBottom: `1px solid ${C.lineSoft}` }}>
+                          {money((v.fronted ?? 0) - (v.repaid ?? 0))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </>
           )}
         </Panel>
       </motion.div>
 
-      {/* Trucking float — live from CSV */}
+      {/* Dragan */}
       <motion.div variants={rise} initial="hidden" animate="show" custom={1}>
-        <div className="grid gap-7 lg:grid-cols-[1fr_360px]">
-          <Panel title="Trucking float · fronted from your personal account" flush>
-            {!hasData && (
-              <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>
-                Import CSV from F-01 to see trucking float transactions.
+        <Panel title="Dragan balance" action={<Seg options={DRAG_VIEWS} value={dragView} onChange={setDragView} />} flush>
+          {!hasData && (
+            <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>Import CSV to see Dragan split.</div>
+          )}
+          {hasData && (
+            <>
+              {/* Balance hero */}
+              <div className="grid gap-px sm:grid-cols-4" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
+                {[
+                  { l: "Running balance", v: money(dragan.balance), c: dragan.balance > 0 ? C.oxide : C.moss, s: "Direct fronted + 50% shared" },
+                  { l: "Direct fronted", v: money(dragan.direct_fronted), c: C.oxide },
+                  { l: "His share (50%)", v: money(dragan.dragan_share), c: C.dim },
+                  { l: "Repaid", v: money(dragan.repaid), c: C.moss },
+                ].map((s) => (
+                  <div key={s.l} className="px-5 py-5">
+                    <Label>{s.l}</Label>
+                    <div className="mt-3"><Fig size={23} color={s.c}>{s.v}</Fig></div>
+                    {s.s && <div className="mt-2 text-[12px]" style={{ color: C.faint }}>{s.s}</div>}
+                  </div>
+                ))}
               </div>
-            )}
-            {hasData && cantilever.fronted.length === 0 && (
-              <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>
-                No trucking transactions found this month. The CSV parser looks for keywords like "carat expedited" and "pro freight".
-              </div>
-            )}
-            {hasData && cantilever.fronted.length > 0 && (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[580px] border-collapse text-left">
-                    <thead>
-                      <tr>
-                        <Th w="36%">Item</Th>
-                        <Th>Entity</Th>
-                        <Th>Date</Th>
-                        <Th right>Fronted</Th>
-                        <Th right>Came back</Th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cantilever.fronted.map((r) => (
-                        <tr key={r.item + r.date} className="transition-colors hover:bg-[#2C372A]">
-                          <Td>{r.item}</Td>
-                          <Td color={C.faint} className="text-[13px]">{r.entity}</Td>
-                          <Td color={C.faint}><span style={num}>{r.date}</span></Td>
-                          <Td right color={C.oxide}><span style={{ ...num, fontWeight: 600 }}>{money(r.amount)}</span></Td>
-                          <Td right color={r.back ? C.moss : C.ghost}>
-                            <span style={num}>{r.back ? money(r.back) : "—"}</span>
-                          </Td>
-                        </tr>
+
+              {dragView === "Summary" && (
+                <div className="grid gap-px sm:grid-cols-3">
+                  {[
+                    { l: "12-month share", v: money(dragan.share12) },
+                    { l: "12-month repaid", v: money(dragan.repaid12) },
+                    { l: "12-month net", v: money(dragan.share12 - dragan.repaid12), c: (dragan.share12 - dragan.repaid12) > 0 ? C.oxide : C.moss },
+                  ].map((s) => (
+                    <div key={s.l} className="px-5 py-5">
+                      <Label>{s.l}</Label>
+                      <div className="mt-3"><Fig size={20} color={s.c ?? C.text}>{s.v}</Fig></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {dragView === "Monthly" && (
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ background: "rgba(44,55,42,0.5)" }}>
+                      {["Month", "Direct", "Share", "Repaid", "Balance"].map((h, i) => (
+                        <th key={h} className="px-5 py-[10px] text-[11px] font-semibold uppercase tracking-[0.14em]"
+                          style={{ color: C.faint, borderBottom: `1px solid ${C.lineSoft}`, textAlign: i > 0 ? "right" : "left" }}>{h}</th>
                       ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ background: "rgba(44, 55, 42, 0.5)" }}>
-                        <Td color={C.text}><span className="text-[12px] font-bold uppercase tracking-[0.16em]">This month</span></Td>
-                        <Td>{" "}</Td>
-                        <Td>{" "}</Td>
-                        <Td right color={C.oxide}><span style={{ ...num, fontWeight: 700 }}>{money(fronted)}</span></Td>
-                        <Td right color={C.moss}><span style={{ ...num, fontWeight: 700 }}>{money(back)}</span></Td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(dragan.monthly ?? []).slice().reverse().map((m) => (
+                      <tr key={m.month}>
+                        <td className="px-5 py-[13px] text-[13px]" style={{ color: C.text, borderBottom: `1px solid ${C.lineSoft}` }}>{m.month}</td>
+                        <td className="px-5 py-[13px] text-right text-[13px]" style={{ ...num, color: C.oxide, borderBottom: `1px solid ${C.lineSoft}` }}>{money(m.direct ?? 0)}</td>
+                        <td className="px-5 py-[13px] text-right text-[13px]" style={{ ...num, color: C.dim, borderBottom: `1px solid ${C.lineSoft}` }}>{money(m.share ?? 0)}</td>
+                        <td className="px-5 py-[13px] text-right text-[13px]" style={{ ...num, color: C.moss, borderBottom: `1px solid ${C.lineSoft}` }}>{money(m.repaid ?? 0)}</td>
+                        <td className="px-5 py-[13px] text-right text-[14px] font-semibold"
+                          style={{ ...num, color: m.balance > 0 ? C.oxide : C.moss, borderBottom: `1px solid ${C.lineSoft}` }}>{money(m.balance ?? 0)}</td>
                       </tr>
-                    </tfoot>
-                  </table>
-                </div>
-                {fronted > 0 && (
-                  <div className="px-5 py-[18px]" style={{ background: "rgba(44, 55, 42, 0.5)", borderTop: `1px solid ${C.line}` }}>
-                    <Label>Recovery rate</Label>
-                    <p className="mt-2.5 max-w-[56ch] text-[15px] font-light leading-[1.55]" style={{ color: C.dim }}>
-                      {money(back)} of the {money(fronted)} you fronted in {meta.monthShort} came back, a{" "}
-                      <span style={{ ...num, color: C.oxide, fontWeight: 700 }}>
-                        {fronted > 0 ? Math.round((back / fronted) * 100) : 0}%
-                      </span>{" "}
-                      recovery.
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </Panel>
+                    ))}
+                  </tbody>
+                </table>
+              )}
 
-          <Panel title="Aging">
-            <Label>Outstanding balance</Label>
-            <div className="mt-3">
-              <Fig size={42} color={outstanding > 0 ? C.oxide : C.ghost}>{outstanding > 0 ? money(outstanding) : "—"}</Fig>
-            </div>
-            <p className="mt-3 text-[13px] font-light leading-[1.55]" style={{ color: C.dim }}>
-              {outstanding > 0
-                ? "Carried from trucking transactions. None on a repayment schedule."
-                : "No outstanding trucking float."}
-            </p>
-
-            <div className="mt-7 space-y-4">
-              {cantilever.ageBuckets.map((b, i) => (
-                <div key={b.label}>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[12px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>{b.label}</span>
-                    <span className="text-[14px] font-semibold" style={{ ...num, color: i > 1 ? C.oxide : C.text }}>{money(b.amount)}</span>
-                  </div>
-                  <div className="mt-2 h-[10px] w-full" style={{ background: C.lineSoft }}>
-                    <motion.div className="h-full"
-                      style={{ backgroundImage: `repeating-linear-gradient(45deg, ${C.oxide} 0 1px, transparent 1px 8px)`, borderTop: `1px solid ${C.oxide}`, borderBottom: `1px solid ${C.oxide}` }}
-                      initial={{ width: 0 }}
-                      animate={{ width: b.amount > 0 ? `${(b.amount / maxBucket) * 100}%` : "0%" }}
-                      transition={{ duration: 0.75, delay: 0.12 + i * 0.09, ease: [0.16, 1, 0.3, 1] }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {outstanding > 0 && (
-              <div className="mt-7 px-4 py-4" style={{ background: C.oxideBg, border: `1px solid #6B4034` }}>
-                <Label color={C.oxide}>What this costs you</Label>
-                <p className="mt-2.5 text-[14px] font-light leading-[1.55]" style={{ color: C.text }}>
-                  {money(outstanding)} of your money is doing the trucking company's job instead of yours. At your Bogat rate that is roughly {Math.round(outstanding / 195)} billable hours you fronted for free.
-                </p>
-              </div>
-            )}
-          </Panel>
-        </div>
+              {dragView === "Transactions" && (
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ background: "rgba(44,55,42,0.5)" }}>
+                      {["Date", "Description", "Type", "Amount"].map((h, i) => (
+                        <th key={h} className="px-5 py-[10px] text-[11px] font-semibold uppercase tracking-[0.14em]"
+                          style={{ color: C.faint, borderBottom: `1px solid ${C.lineSoft}`, textAlign: i > 2 ? "right" : "left" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(dragan.transactions ?? []).slice(0, 60).map((t, i) => (
+                      <tr key={t.tx_key ?? i}>
+                        <td className="px-5 py-[12px] text-[12px] whitespace-nowrap" style={{ color: C.ghost, borderBottom: `1px solid ${C.lineSoft}` }}>{t.date}</td>
+                        <td className="max-w-[220px] px-5 py-[12px] text-[13px]" style={{ color: C.text, borderBottom: `1px solid ${C.lineSoft}` }}>
+                          <div className="truncate">{t.name ?? t.description}</div>
+                        </td>
+                        <td className="px-5 py-[12px]" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
+                          <Chip tone={t.flow === "REPAID" ? "keep" : t.flow === "FRONTED" ? "cancel" : "neutral"}>{t.flow}</Chip>
+                        </td>
+                        <td className="px-5 py-[12px] text-right text-[14px] font-semibold"
+                          style={{ ...num, color: t.flow === "REPAID" ? C.moss : C.oxide, borderBottom: `1px solid ${C.lineSoft}` }}>
+                          {money(t.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </Panel>
       </motion.div>
+
+      {hasData && (
+        <motion.div variants={rise} initial="hidden" animate="show" custom={2}>
+          <div className="px-5 py-4 text-[12px] font-light" style={{ color: C.faint, border: `1px solid ${C.lineSoft}` }}>
+            Trucking entities: Carat Expedited · Pro Freight Transportation · Pro Freight Logistics · Treviator · Stork ·
+            Dragan balance = direct Zelle forwards + 50% of shared household categories (Housing, Utilities, Groceries, Dining, Entertainment) − repayments.
+            All running totals are cumulative over full transaction history, not just this month.
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

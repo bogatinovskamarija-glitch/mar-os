@@ -1,113 +1,116 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { C, money, num } from "../theme";
-import { Label, Fig, Panel, Chip, Th, Td, Seg, Btn, rise } from "../kit";
-import { SUBSCRIPTIONS } from "../data";
+import { Label, Panel, Chip, Seg, rise } from "../kit";
+import { useFinance } from "../hooks/useFinance";
 
-const FILTERS = ["All", "Cancel", "Review", "Keep"];
-const RANK = { cancel: 0, review: 1, keep: 2 };
+const STATUS_TONE = { Active: "keep", Stopped: "cancel", Sporadic: "review" };
+const CADENCE_ORDER = ["Weekly", "Bi-weekly", "Monthly", "Quarterly", "Annual"];
+const VIEWS = ["All", "Active", "Stopped"];
 
 export default function Recurring() {
-  const [f, setF] = useState("All");
-  const [killed, setKilled] = useState([]);
+  const { recurring, hasData } = useFinance();
+  const [view, setView] = useState("All");
 
-  const rows = [...SUBSCRIPTIONS]
-    .filter((r) => f === "All" || r.verdict === f.toLowerCase())
-    .sort((a, b) => RANK[a.verdict] - RANK[b.verdict] || b.amount - a.amount);
+  const filtered = recurring.filter((r) => {
+    if (view === "Active")  return r.status === "Active";
+    if (view === "Stopped") return r.status === "Stopped";
+    return true;
+  });
 
-  const monthly = SUBSCRIPTIONS.reduce((a, r) => a + r.amount, 0);
-  const cancels = SUBSCRIPTIONS.filter((r) => r.verdict === "cancel");
-  const reviews = SUBSCRIPTIONS.filter((r) => r.verdict === "review");
-  const waste = cancels.reduce((a, r) => a + r.amount, 0);
-  const saved = SUBSCRIPTIONS.filter((r) => killed.includes(r.name)).reduce((a, r) => a + r.amount, 0);
+  // Group by cadence
+  const groups = CADENCE_ORDER.map((cad) => ({
+    cad,
+    rows: filtered.filter((r) => r.cadence === cad),
+  })).filter((g) => g.rows.length > 0);
 
-  const toggle = (n) => setKilled((k) => (k.includes(n) ? k.filter((x) => x !== n) : [...k, n]));
+  const monthlyTotal = recurring
+    .filter((r) => r.status === "Active")
+    .reduce((a, r) => a + (r.monthly_equiv ?? 0), 0);
+
+  const annualTotal = monthlyTotal * 12;
 
   return (
     <div className="space-y-7">
+      {/* Summary */}
+      {hasData && (
+        <motion.div variants={rise} initial="hidden" animate="show" custom={-1}>
+          <div className="grid gap-px sm:grid-cols-3" style={{ background: C.line, border: `1px solid ${C.line}` }}>
+            {[
+              { l: "Active recurring / mo", v: money(monthlyTotal), c: monthlyTotal > 0 ? C.oxide : C.ghost },
+              { l: "Active recurring / yr", v: money(annualTotal), c: annualTotal > 0 ? C.oxide : C.ghost },
+              { l: "Stopped charges", v: String(recurring.filter((r) => r.status === "Stopped").length), c: C.ghost },
+            ].map((s) => (
+              <div key={s.l} className="px-5 py-5" style={{ background: "rgba(36,46,34,0.7)", backdropFilter: "blur(14px)" }}>
+                <Label>{s.l}</Label>
+                <div className="mt-3 text-[25px] font-bold" style={{ ...num, color: s.c }}>{s.v}</div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       <motion.div variants={rise} initial="hidden" animate="show" custom={0}>
-        <div className="grid gap-px sm:grid-cols-4" style={{ background: C.line, border: `1px solid ${C.line}` }}>
-          {[
-            { l: "Recurring load", v: money(monthly, true), s: `${SUBSCRIPTIONS.length} active · ${money(monthly * 12)} a year`, t: C.text },
-            { l: "Dead weight", v: money(waste, true), s: `${cancels.length} unused in 45+ days`, t: C.oxide },
-            { l: "Worth a look", v: money(reviews.reduce((a, r) => a + r.amount, 0), true), s: `${reviews.length} drifting`, t: C.dim },
-            { l: "Cancelled here", v: money(saved, true), s: killed.length ? `${killed.length} killed · ${money(saved * 12)} a year` : "Tick a row to model it", t: saved ? C.moss : C.ghost },
-          ].map((s) => (
-            <div key={s.l} className="px-5 py-5" style={{ background: "rgba(36, 46, 34, 0.7)", backdropFilter: "blur(14px)" }}>
-              <Label>{s.l}</Label>
-              <div className="mt-3"><Fig size={27} color={s.t}>{s.v}</Fig></div>
-              <div className="mt-2 text-[12px] font-light leading-snug" style={{ color: C.faint }}>{s.s}</div>
+        <Panel title="Auto-detected recurring" action={<Seg options={VIEWS} value={view} onChange={setView} />} flush>
+          {!hasData && (
+            <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>Import CSV to detect recurring charges.</div>
+          )}
+          {hasData && filtered.length === 0 && (
+            <div className="px-5 py-8 text-[13px]" style={{ color: C.faint }}>
+              {view === "All" ? "No recurring patterns detected yet." : `No ${view.toLowerCase()} charges.`}
+            </div>
+          )}
+          {groups.map((g, gi) => (
+            <div key={g.cad}>
+              <div className="flex items-center gap-4 px-5 py-[10px]"
+                style={{ background: "rgba(44,55,42,0.45)", borderBottom: `1px solid ${C.lineSoft}` }}>
+                <Label color={C.ghost}>{g.cad}</Label>
+                <span className="ml-auto text-[12px]" style={{ ...num, color: C.faint }}>
+                  {money(g.rows.filter((r) => r.status === "Active").reduce((a, r) => a + (r.monthly_equiv ?? 0), 0))}/mo equiv
+                </span>
+              </div>
+              {g.rows.map((r, i) => (
+                <motion.div key={r.service}
+                  initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.03 * (i + gi * 4), duration: 0.3 }}>
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-[15px]"
+                    style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[15px]" style={{ color: C.text }}>{r.service}</div>
+                      {r.account && (
+                        <div className="mt-1 truncate text-[12px]" style={{ color: C.faint }}>{r.account}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {r.last_date && (
+                        <span className="text-[12px]" style={{ color: C.ghost }}>
+                          Last {new Date(r.last_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      )}
+                      <div className="text-right">
+                        <div className="text-[16px] font-semibold" style={{ ...num, color: r.status === "Active" ? C.oxide : C.faint }}>
+                          {money(r.amount)}
+                        </div>
+                        {r.monthly_equiv && r.cadence !== "Monthly" && (
+                          <div className="text-[11px]" style={{ ...num, color: C.ghost }}>
+                            {money(r.monthly_equiv)}/mo
+                          </div>
+                        )}
+                      </div>
+                      <Chip tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Chip>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           ))}
-        </div>
+        </Panel>
       </motion.div>
 
       <motion.div variants={rise} initial="hidden" animate="show" custom={1}>
-        <Panel
-          title="Subscription audit"
-          action={
-            <div className="flex flex-wrap items-center gap-3">
-              <Seg options={FILTERS} value={f} onChange={setF} />
-              {killed.length > 0 && <Btn onClick={() => setKilled([])}>Reset · {killed.length}</Btn>}
-            </div>
-          }
-          flush
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] border-collapse text-left">
-              <thead>
-                <tr>
-                  <Th w="40px">{" "}</Th>
-                  <Th w="26%">Service</Th>
-                  <Th>Bucket</Th>
-                  <Th right>Monthly</Th>
-                  <Th right>Per year</Th>
-                  <Th right>Last opened</Th>
-                  <Th>Next charge</Th>
-                  <Th right w="110px">Verdict</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const dead = killed.includes(r.name);
-                  return (
-                    <tr key={r.name} className="transition-colors hover:bg-[#2C372A]" style={{ opacity: dead ? 0.42 : 1 }}>
-                      <Td>
-                        <button type="button" onClick={() => toggle(r.name)} aria-pressed={dead}
-                          aria-label={`Model cancelling ${r.name}`}
-                          className="grid h-[16px] w-[16px] cursor-pointer place-items-center border"
-                          style={{ borderColor: dead ? C.moss : C.ghost, background: dead ? C.moss : "transparent" }}>
-                          {dead && (
-                            <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden>
-                              <path d="M1 5.2 3.7 8 9 1.8" stroke={C.forest} strokeWidth="2" fill="none" />
-                            </svg>
-                          )}
-                        </button>
-                      </Td>
-                      <Td>
-                        <span className="font-medium" style={{ textDecoration: dead ? "line-through" : "none" }}>{r.name}</span>
-                        {r.irony && <span className="ml-2 whitespace-nowrap text-[12px] italic" style={{ color: C.oxide }}>the one this board replaces</span>}
-                      </Td>
-                      <Td color={C.faint} className="text-[13px]">{r.bucket}</Td>
-                      <Td right><span style={{ ...num, fontWeight: 600 }}>{money(r.amount, true)}</span></Td>
-                      <Td right color={C.faint}><span style={num}>{money(r.amount * 12)}</span></Td>
-                      <Td right color={r.lastUsed > 40 ? C.oxide : r.lastUsed > 14 ? C.dim : C.faint}>
-                        <span style={num}>{r.lastUsed === 0 ? "today" : `${r.lastUsed}d ago`}</span>
-                      </Td>
-                      <Td color={C.faint}><span style={num}>{r.next}</span></Td>
-                      <Td right><Chip tone={r.verdict}>{r.verdict}</Chip></Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-5 py-4" style={{ background: "rgba(44, 55, 42, 0.5)", borderTop: `1px solid ${C.line}` }}>
-            <p className="text-[13px] font-light" style={{ color: C.faint }}>
-              Update this list in <code className="text-[12px]" style={{ color: C.moss }}>src/data.js → SUBSCRIPTIONS</code> when you add or cancel a service.
-            </p>
-          </div>
-        </Panel>
+        <div className="px-5 py-4 text-[12px] font-light" style={{ color: C.faint, border: `1px solid ${C.lineSoft}` }}>
+          Auto-detected from transaction history · ≥3 charges with consistent gap (5–390 days) · Service names matched by merchant keyword groups
+        </div>
       </motion.div>
     </div>
   );

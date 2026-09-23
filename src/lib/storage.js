@@ -154,24 +154,34 @@ export const financeStore = {
   set(data) {
     safe(() => localStorage.setItem("finance:data", JSON.stringify(data)));
     safe(() => localStorage.setItem("finance:importedAt", new Date().toISOString()));
-    // Sync raw transactions to Supabase in batches
     const uid = getUid();
     if (!uid || !data?.transactions?.length) return;
     const txns = data.transactions;
-    const BATCH = 500;
+    const BATCH = 400;
     for (let i = 0; i < txns.length; i += BATCH) {
       const rows = txns.slice(i, i + BATCH).map((t) => ({
-        user_id: uid,
-        date: t.date,
-        description: t.description,
-        amount: t.amount,
-        account: t.account,
-        category: t.category ?? null,
-        trucking: t.trucking ?? false,
-        dragan: t.dragan ?? false,
+        user_id:      uid,
+        tx_key:       t.tx_key,
+        date:         t.date,
+        month:        t.month,
+        year:         t.year,
+        account:      t.account,
+        account_type: t.account_type ?? null,
+        merchant:     t.merchant ?? null,
+        name:         t.name ?? null,
+        description:  t.description ?? null,
+        amount:       t.amount,
+        signed:       t.signed ?? -(t.amount),
+        flow:         t.flow,
+        category:     t.category ?? null,
+        entity:       t.entity ?? null,
+        entity_basis: t.entity_basis ?? null,
+        shared:       t.shared ?? false,
+        rm_category:  t.rm_category ?? null,
+        flag:         t.flag ?? null,
       }));
-      supabase.from("mar_os_finance_transactions")
-        .upsert(rows, { onConflict: "user_id,date,description,amount,account" })
+      supabase.from("mar_os_transactions")
+        .upsert(rows, { onConflict: "user_id,tx_key" })
         .then(() => {});
     }
   },

@@ -126,19 +126,3 @@ export const FALLBACK_ACCOUNTS = [
 ];
 
 export const FOCUS_GOAL_MIN = 240;
-
-export const SUBSCRIPTIONS = [
-  { name: "Adobe Creative Cloud", bucket: "Design tools", amount: 59.99, lastUsed: 0, next: "Oct 1", verdict: "keep" },
-  { name: "Claude (Anthropic)", bucket: "AI / tools", amount: 20, lastUsed: 0, next: "Oct 5", verdict: "keep" },
-  { name: "ClickUp", bucket: "Productivity", amount: 9, lastUsed: 0, next: "Oct 8", verdict: "keep" },
-  { name: "NCARB", bucket: "Licensure", amount: 35, lastUsed: 7, next: "Oct 15", verdict: "keep" },
-  { name: "Squarespace", bucket: "Website", amount: 23, lastUsed: 30, next: "Oct 22", verdict: "review" },
-  { name: "Rocket Money", bucket: "Finance", amount: 12, lastUsed: 47, next: "Sep 28", verdict: "cancel", irony: true },
-  { name: "Spotify", bucket: "Music", amount: 10.99, lastUsed: 0, next: "Oct 3", verdict: "keep" },
-  { name: "Netflix", bucket: "Entertainment", amount: 15.49, lastUsed: 14, next: "Oct 12", verdict: "review" },
-  { name: "iCloud 200GB", bucket: "Storage", amount: 2.99, lastUsed: 0, next: "Oct 7", verdict: "keep" },
-  { name: "Google One", bucket: "Storage", amount: 2.99, lastUsed: 32, next: "Oct 11", verdict: "review" },
-  { name: "HeyGen", bucket: "AI / video", amount: 29, lastUsed: 61, next: "Oct 2", verdict: "cancel" },
-  { name: "Dropbox", bucket: "Storage", amount: 11.99, lastUsed: 48, next: "Oct 19", verdict: "cancel" },
-  { name: "Audible", bucket: "Books", amount: 14.95, lastUsed: 16, next: "Oct 8", verdict: "review" },
-];

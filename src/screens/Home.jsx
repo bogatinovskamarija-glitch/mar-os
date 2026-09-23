@@ -26,11 +26,9 @@ export default function Home({ go }) {
   const { priorities, loading: pLoading } = usePriorities();
   const { goals, loading: gLoading } = useGoals();
   const { todayMins, goalMin } = useFocus();
-  const { accounts, cantilever, hasData } = useFinance();
+  const { truckingBalance, draganBalance, hasData } = useFinance();
 
   const { weather, loading: wLoading, error: wError } = useWeather();
-  const liquid = accounts.filter((a) => a.balance > 0).reduce((a, x) => a + x.balance, 0);
-  const outstanding = cantilever.fronted.reduce((a, r) => a + r.amount - r.back, 0);
 
   const today = new Date();
   const todayLabel = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -174,10 +172,10 @@ export default function Home({ go }) {
           <Panel title="Money at a glance">
             <div className="flex items-end justify-between">
               <div>
-                <Label>Liquid cash</Label>
+                <Label>Trucking float</Label>
                 <div className="mt-3">
-                  <Fig size={36} color={liquid > 0 ? C.moss : C.ghost}>
-                    {liquid > 0 ? money(liquid) : "—"}
+                  <Fig size={36} color={truckingBalance > 0 ? C.oxide : C.ghost}>
+                    {hasData ? money(truckingBalance) : "—"}
                   </Fig>
                 </div>
               </div>
@@ -189,10 +187,10 @@ export default function Home({ go }) {
             </div>
             <div className="mt-7 grid grid-cols-2 gap-5">
               <div>
-                <Label>Trucking float</Label>
+                <Label>Dragan balance</Label>
                 <div className="mt-2">
-                  <Fig size={22} color={outstanding > 0 ? C.oxide : C.ghost}>
-                    {outstanding > 0 ? money(outstanding) : "—"}
+                  <Fig size={22} color={draganBalance > 0 ? C.oxide : C.ghost}>
+                    {hasData ? money(draganBalance) : "—"}
                   </Fig>
                 </div>
               </div>
