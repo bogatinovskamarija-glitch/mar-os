@@ -61,7 +61,7 @@ export async function syncDown(uid) {
     supabase.from("mar_os_focus").select("date,minutes").eq("user_id", uid).gte("date", since),
     supabase.from("mar_os_focus_sessions").select("date_label,target,done,mins,result").eq("user_id", uid).order("created_at", { ascending: false }).limit(50),
     supabase.from("mar_os_settings").select("key,value").eq("user_id", uid),
-    supabase.from("mar_os_wins").select("id,cat,text,date").eq("user_id", uid).order("id", { ascending: false }),
+    supabase.from("mar_os_wins").select("id,cat,text,date,image_url").eq("user_id", uid).order("id", { ascending: false }),
   ]);
   const txns = await fetchAllTransactions(uid);
 
@@ -95,6 +95,9 @@ export async function syncDown(uid) {
     }
     if ((wins.data ?? []).length > 0) {
       winsStore.hydrate(wins.data);
+    } else {
+      // Backfill: upload any localStorage wins that predate Supabase sync
+      await winsStore.backfill(uid);
     }
   } catch {}
   try { window.dispatchEvent(new Event("syncdown-complete")); } catch {}
